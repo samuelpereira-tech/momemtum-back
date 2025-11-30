@@ -56,6 +56,7 @@ export class AuthController {
     type: AuthResultResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  @ApiResponse({ status: 403, description: 'Rate limit excedido. Aguarde antes de tentar novamente' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado' })
   async signUp(@Body() signUpDto: SignUpEmailPasswordDto) {
     return this.authService.signUpWithEmailPassword(signUpDto);
@@ -71,6 +72,7 @@ export class AuthController {
     type: AuthResultResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
+  @ApiResponse({ status: 403, description: 'Rate limit excedido. Aguarde antes de tentar novamente' })
   async signInWithEmailPassword(@Body() signInDto: SignInEmailPasswordDto) {
     return this.authService.signInWithEmailPassword(signInDto);
   }
@@ -167,6 +169,7 @@ export class AuthController {
     type: MagicLinkSentResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Email inválido' })
+  @ApiResponse({ status: 403, description: 'Rate limit excedido. Aguarde antes de tentar novamente' })
   async signInWithMagicLink(@Body() magicLinkDto: SignInMagicLinkDto) {
     return this.authService.signInWithMagicLink(magicLinkDto);
   }
@@ -201,6 +204,7 @@ export class AuthController {
     type: AuthResultResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Telefone inválido ou código incorreto' })
+  @ApiResponse({ status: 403, description: 'Rate limit excedido. Aguarde antes de tentar novamente' })
   async signInWithOTP(@Body() otpDto: SignInOTPDto) {
     if (otpDto.code) {
       return this.authService.verifyOTP(otpDto.phone, otpDto.code);

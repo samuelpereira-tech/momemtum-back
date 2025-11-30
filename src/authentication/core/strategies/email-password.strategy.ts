@@ -7,6 +7,7 @@ import {
   User,
   Session,
 } from '../interfaces/auth.interface';
+import { handleSupabaseError } from '../utils/error-handler.util';
 
 @Injectable()
 export class EmailPasswordStrategy implements AuthStrategy {
@@ -20,7 +21,11 @@ export class EmailPasswordStrategy implements AuthStrategy {
     });
 
     if (error) {
-      throw new Error(error.message || 'Authentication failed');
+      handleSupabaseError(error);
+    }
+
+    if (!data?.user || !data?.session) {
+      throw new Error('Authentication failed: invalid response from Supabase');
     }
 
     return this.mapToAuthResult(data);
@@ -34,7 +39,18 @@ export class EmailPasswordStrategy implements AuthStrategy {
     });
 
     if (error) {
-      throw new Error(error.message || 'Sign up failed');
+      handleSupabaseError(error);
+    }
+
+    if (!data?.user) {
+      throw new Error('Sign up failed: user data not returned');
+    }
+
+    // Se não houver sessão (email precisa ser confirmado), retorna apenas o usuário
+    if (!data.session) {
+      return {
+        user: this.mapToUser(data.user),
+      };
     }
 
     return this.mapToAuthResult(data);
@@ -52,6 +68,10 @@ export class EmailPasswordStrategy implements AuthStrategy {
   }
 
   private mapToAuthResult(data: any): AuthResult {
+    if (!data.session) {
+      throw new Error('Session is required for authentication');
+    }
+
     return {
       user: this.mapToUser(data.user),
       session: this.mapToSession(data.session),

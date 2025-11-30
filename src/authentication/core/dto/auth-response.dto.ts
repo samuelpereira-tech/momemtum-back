@@ -50,14 +50,14 @@ export class AuthResultResponseDto {
   @ApiProperty({ description: 'Dados do usuário autenticado', type: UserResponseDto })
   user: UserResponseDto;
 
-  @ApiProperty({ description: 'Dados da sessão', type: SessionResponseDto })
-  session: SessionResponseDto;
+  @ApiPropertyOptional({ description: 'Dados da sessão (apenas quando há sessão ativa)', type: SessionResponseDto, nullable: true })
+  session?: SessionResponseDto | null;
 
-  @ApiProperty({ description: 'Access token JWT', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
-  accessToken: string;
+  @ApiPropertyOptional({ description: 'Access token JWT (apenas quando há sessão)', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  accessToken?: string;
 
-  @ApiProperty({ description: 'Refresh token', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
-  refreshToken: string;
+  @ApiPropertyOptional({ description: 'Refresh token (apenas quando há sessão)', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  refreshToken?: string;
 }
 
 export class MagicLinkSentResponseDto {

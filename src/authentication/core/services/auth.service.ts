@@ -15,6 +15,7 @@ import {
   User,
   Session,
 } from '../interfaces/auth.interface';
+import { handleSupabaseError } from '../utils/error-handler.util';
 
 @Injectable()
 export class AuthService {
@@ -67,7 +68,7 @@ export class AuthService {
     const { data, error } = await client.auth.refreshSession(refreshToken);
 
     if (error) {
-      throw new Error(error.message || 'Failed to refresh token');
+      handleSupabaseError(error);
     }
 
     return this.mapToAuthResult(data.session);
@@ -78,7 +79,7 @@ export class AuthService {
     const { error } = await client.auth.signOut();
 
     if (error) {
-      throw new Error(error.message || 'Failed to sign out');
+      handleSupabaseError(error);
     }
   }
 

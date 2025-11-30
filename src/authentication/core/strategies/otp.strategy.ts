@@ -7,6 +7,7 @@ import {
   User,
   Session,
 } from '../interfaces/auth.interface';
+import { handleSupabaseError } from '../utils/error-handler.util';
 
 @Injectable()
 export class OTPStrategy implements AuthStrategy {
@@ -32,10 +33,10 @@ export class OTPStrategy implements AuthStrategy {
     });
 
     if (error) {
-      throw new Error(error.message || 'Failed to send OTP');
+      handleSupabaseError(error);
     }
 
-    // Mock: retorna resultado indicando que o código foi enviado
+    // Retorna resultado indicando que o código foi enviado
     return {
       user: {
         id: 'pending-otp-user',
@@ -46,9 +47,7 @@ export class OTPStrategy implements AuthStrategy {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-      session: null as any,
-      accessToken: '',
-      refreshToken: '',
+      session: null,
     };
   }
 
@@ -62,7 +61,7 @@ export class OTPStrategy implements AuthStrategy {
     });
 
     if (error) {
-      throw new Error(error.message || 'Invalid OTP code');
+      handleSupabaseError(error);
     }
 
     return this.mapToAuthResult(data);
@@ -80,6 +79,14 @@ export class OTPStrategy implements AuthStrategy {
   }
 
   private mapToAuthResult(data: any): AuthResult {
+    if (!data?.user) {
+      throw new Error('User data is required');
+    }
+
+    if (!data?.session) {
+      throw new Error('Session is required for OTP verification');
+    }
+
     return {
       user: this.mapToUser(data.user),
       session: this.mapToSession(data.session),

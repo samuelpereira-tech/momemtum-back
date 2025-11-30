@@ -8,6 +8,7 @@ import {
   User,
   Session,
 } from '../interfaces/auth.interface';
+import { handleSupabaseError } from '../utils/error-handler.util';
 
 @Injectable()
 export class OAuthStrategy implements AuthStrategy {
@@ -26,7 +27,7 @@ export class OAuthStrategy implements AuthStrategy {
     });
 
     if (error) {
-      throw new Error(error.message || 'OAuth authentication failed');
+      handleSupabaseError(error);
     }
 
     // Mock: retorna resultado simulado
@@ -43,7 +44,7 @@ export class OAuthStrategy implements AuthStrategy {
     });
 
     if (error) {
-      throw new Error(error.message || 'Failed to get authorization URL');
+      handleSupabaseError(error);
     }
 
     return data.url;

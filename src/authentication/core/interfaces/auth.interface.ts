@@ -14,9 +14,9 @@ export enum OAuthProvider {
 
 export interface AuthResult {
   user: User;
-  session: Session;
-  accessToken: string;
-  refreshToken: string;
+  session?: Session | null;
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 export interface User {

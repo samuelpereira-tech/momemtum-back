@@ -7,6 +7,7 @@ import {
   User,
   Session,
 } from '../interfaces/auth.interface';
+import { handleSupabaseError } from '../utils/error-handler.util';
 
 @Injectable()
 export class MagicLinkStrategy implements AuthStrategy {
@@ -24,10 +25,10 @@ export class MagicLinkStrategy implements AuthStrategy {
     });
 
     if (error) {
-      throw new Error(error.message || 'Failed to send magic link');
+      handleSupabaseError(error);
     }
 
-    // Mock: retorna resultado indicando que o link foi enviado
+    // Retorna resultado indicando que o link foi enviado
     // Na implementação real, o usuário clica no link e é redirecionado
     return {
       user: {
@@ -37,9 +38,7 @@ export class MagicLinkStrategy implements AuthStrategy {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-      session: null as any,
-      accessToken: '',
-      refreshToken: '',
+      session: null,
     };
   }
 
