@@ -83,6 +83,10 @@ export class AuthService {
     }
   }
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    return this.emailPasswordStrategy.changePassword(currentPassword, newPassword);
+  }
+
   private mapToAuthResult(session: any): AuthResult {
     return {
       user: this.mapToUser(session.user),

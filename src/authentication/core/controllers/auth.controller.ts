@@ -31,6 +31,7 @@ import {
   SignInOTPDto,
   VerifyOTPDto,
   RefreshTokenDto,
+  ChangePasswordDto,
 } from '../dto/auth.dto';
 import {
   AuthResultResponseDto,
@@ -287,6 +288,38 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Não autenticado' })
   async signOut() {
     return this.authService.signOut();
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Alterar senha',
+    description: 'Altera a senha do usuário autenticado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Senha alterada com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Password changed successfully',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  @ApiResponse({ status: 401, description: 'Senha atual incorreta ou não autenticado' })
+  @ApiResponse({ status: 403, description: 'Rate limit excedido. Aguarde antes de tentar novamente' })
+  async changePassword(@Body() changePasswordDto: ChangePasswordDto) {
+    await this.authService.changePassword(
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
+    return { message: 'Password changed successfully'};
   }
 }
 

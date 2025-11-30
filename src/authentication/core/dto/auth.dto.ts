@@ -130,3 +130,21 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
+export class ChangePasswordDto {
+  @ApiProperty({
+    description: 'Senha atual do usuário',
+    example: 'currentPassword123',
+    minLength: 6,
+  })
+  @IsString()
+  currentPassword: string;
+
+  @ApiProperty({
+    description: 'Nova senha do usuário',
+    example: 'newPassword123',
+    minLength: 6,
+  })
+  @IsString()
+  newPassword: string;
+}
+

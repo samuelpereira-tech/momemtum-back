@@ -9,6 +9,7 @@ export interface SupabaseClient {
     getUser: () => Promise<{ data: { user: any } | null; error: any }>;
     signOut: () => Promise<{ error: any }>;
     refreshSession: (refreshToken: string) => Promise<{ data: any; error: any }>;
+    updateUser: (attributes: any) => Promise<{ data: any; error: any }>;
   };
 }
 

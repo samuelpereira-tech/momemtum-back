@@ -67,6 +67,37 @@ export class EmailPasswordStrategy implements AuthStrategy {
     return this.mapToUser(data.user);
   }
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const client = this.supabaseService.getClient();
+    
+    // Primeiro, verifica se a senha atual está correta
+    const { data: userData } = await client.auth.getUser();
+    if (!userData?.user?.email) {
+      throw new Error('User not found');
+    }
+
+    // Tenta fazer login com a senha atual para validar
+    const { error: signInError } = await client.auth.signInWithPassword({
+      email: userData.user.email,
+      password: currentPassword,
+    });
+
+    if (signInError) {
+      handleSupabaseError(signInError);
+    }
+
+    // Se a senha atual está correta, atualiza para a nova senha
+    const { data, error: updateError } = await client.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      handleSupabaseError(updateError);
+    }
+
+    return data;
+  }
+
   private mapToAuthResult(data: any): AuthResult {
     if (!data.session) {
       throw new Error('Session is required for authentication');
