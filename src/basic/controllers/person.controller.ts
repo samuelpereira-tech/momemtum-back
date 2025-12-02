@@ -35,6 +35,7 @@ import {
   PaginatedPersonResponseDto,
 } from '../dto/person-response.dto';
 import { AuthGuard } from '../../authentication/core/guards/auth.guard';
+import type { MulterFile } from '../interfaces/file.interface';
 
 @ApiTags('persons')
 @Controller('persons')
@@ -115,7 +116,7 @@ export class PersonController {
   @Put(':id')
   @ApiOperation({
     summary: 'Update person',
-    description: 'Updates an existing person's information',
+    description: "Updates an existing person's information",
   })
   @ApiResponse({
     status: 200,
@@ -186,7 +187,7 @@ export class PersonController {
         ],
       }),
     )
-    file: Express.Multer.File,
+    file: MulterFile,
   ): Promise<PhotoUploadResponseDto> {
     return this.personService.uploadPhoto(id, file);
   }

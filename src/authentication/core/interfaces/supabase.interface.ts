@@ -6,7 +6,7 @@ export interface SupabaseClient {
     signInWithOAuth: (options: any) => Promise<{ data: any; error: any }>;
     verifyOtp: (credentials: any) => Promise<{ data: any; error: any }>;
     getSession: () => Promise<{ data: { session: any } | null; error: any }>;
-    getUser: () => Promise<{ data: { user: any } | null; error: any }>;
+    getUser: (token?: string) => Promise<{ data: { user: any } | null; error: any }>;
     signOut: () => Promise<{ error: any }>;
     refreshSession: (refreshToken: string) => Promise<{ data: any; error: any }>;
     updateUser: (attributes: any) => Promise<{ data: any; error: any }>;

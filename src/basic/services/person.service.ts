@@ -13,6 +13,7 @@ import {
   PaginatedPersonResponseDto,
 } from '../dto/person-response.dto';
 import { handleSupabaseError } from '../../authentication/core/utils/error-handler.util';
+import { MulterFile } from '../interfaces/file.interface';
 
 @Injectable()
 export class PersonService {
@@ -214,7 +215,7 @@ export class PersonService {
 
   async uploadPhoto(
     id: string,
-    file: Express.Multer.File,
+    file: MulterFile,
   ): Promise<PhotoUploadResponseDto> {
     const supabaseClient = this.supabaseService.getRawClient();
 
