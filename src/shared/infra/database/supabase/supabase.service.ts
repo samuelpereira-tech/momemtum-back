@@ -6,8 +6,8 @@ import { SupabaseClient } from '../../../../authentication/core/interfaces/supab
 @Injectable()
 export class SupabaseService implements OnModuleInit {
   private client: SupabaseClientType<any, 'public', any>;
-  private supabaseUrl: string;
-  private supabaseAnonKey: string;
+  public supabaseUrl: string;
+  public supabaseAnonKey: string;
 
   constructor(private configService: ConfigService) {}
 
@@ -32,6 +32,16 @@ export class SupabaseService implements OnModuleInit {
 
   getRawClient(): SupabaseClientType<any, 'public', any> {
     return this.client;
+  }
+
+  getClientWithToken(token: string): SupabaseClientType<any, 'public', any> {
+    return createClient(this.supabaseUrl, this.supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
   }
 
   async healthCheck(): Promise<{ status: string; message: string; connected: boolean }> {

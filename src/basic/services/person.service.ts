@@ -24,39 +24,64 @@ export class PersonService {
   async create(createPersonDto: CreatePersonDto): Promise<PersonResponseDto> {
     const supabaseClient = this.supabaseService.getRawClient();
 
-    // Verifica se email já existe
-    const { data: existingEmail } = await supabaseClient
-      .from(this.tableName)
-      .select('id')
-      .eq('email', createPersonDto.email)
-      .single();
+    // Verifica se email já existe (apenas se fornecido)
+    if (createPersonDto.email) {
+      const { data: existingEmail } = await supabaseClient
+        .from(this.tableName)
+        .select('id')
+        .eq('email', createPersonDto.email)
+        .single();
 
-    if (existingEmail) {
-      throw new ConflictException('Person with this email already exists');
+      if (existingEmail) {
+        throw new ConflictException('Person with this email already exists');
+      }
     }
 
-    // Verifica se CPF já existe
-    const { data: existingCpf } = await supabaseClient
-      .from(this.tableName)
-      .select('id')
-      .eq('cpf', createPersonDto.cpf)
-      .single();
+    // Verifica se CPF já existe (apenas se fornecido)
+    if (createPersonDto.cpf) {
+      const { data: existingCpf } = await supabaseClient
+        .from(this.tableName)
+        .select('id')
+        .eq('cpf', createPersonDto.cpf)
+        .single();
 
-    if (existingCpf) {
-      throw new ConflictException('Person with this CPF already exists');
+      if (existingCpf) {
+        throw new ConflictException('Person with this CPF already exists');
+      }
+    }
+
+    // Helper para verificar se um valor é válido (não undefined, null ou string vazia)
+    const isValidValue = (value: any): boolean => {
+      return value !== undefined && value !== null && value !== '';
+    };
+
+    // Monta o objeto de inserção apenas com os campos fornecidos e não vazios
+    const insertData: any = {
+      full_name: createPersonDto.fullName,
+    };
+
+    if (isValidValue(createPersonDto.email)) {
+      insertData.email = createPersonDto.email;
+    }
+    if (isValidValue(createPersonDto.phone)) {
+      insertData.phone = createPersonDto.phone;
+    }
+    if (isValidValue(createPersonDto.cpf)) {
+      insertData.cpf = createPersonDto.cpf;
+    }
+    if (isValidValue(createPersonDto.birthDate)) {
+      insertData.birth_date = createPersonDto.birthDate;
+    }
+    if (isValidValue(createPersonDto.emergencyContact)) {
+      insertData.emergency_contact = createPersonDto.emergencyContact;
+    }
+    if (isValidValue(createPersonDto.address)) {
+      insertData.address = createPersonDto.address;
     }
 
     const { data, error } = await supabaseClient
       .from(this.tableName)
-      .insert({
-        full_name: createPersonDto.fullName,
-        email: createPersonDto.email,
-        phone: createPersonDto.phone,
-        cpf: createPersonDto.cpf,
-        birth_date: createPersonDto.birthDate,
-        emergency_contact: createPersonDto.emergencyContact,
-        address: createPersonDto.address,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -216,8 +241,12 @@ export class PersonService {
   async uploadPhoto(
     id: string,
     file: MulterFile,
+    token?: string,
   ): Promise<PhotoUploadResponseDto> {
-    const supabaseClient = this.supabaseService.getRawClient();
+    // Cria um cliente Supabase com o token do usuário autenticado para passar pelas políticas RLS
+    const supabaseClient = token
+      ? this.supabaseService.getClientWithToken(token)
+      : this.supabaseService.getRawClient();
 
     // Verifica se a pessoa existe
     await this.findOne(id);
@@ -279,8 +308,11 @@ export class PersonService {
     };
   }
 
-  async deletePhoto(id: string): Promise<void> {
-    const supabaseClient = this.supabaseService.getRawClient();
+  async deletePhoto(id: string, token?: string): Promise<void> {
+    // Cria um cliente Supabase com o token do usuário autenticado para passar pelas políticas RLS
+    const supabaseClient = token
+      ? this.supabaseService.getClientWithToken(token)
+      : this.supabaseService.getRawClient();
 
     // Verifica se a pessoa existe e tem foto
     const person = await this.findOne(id);

@@ -15,7 +15,9 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -188,8 +190,11 @@ export class PersonController {
       }),
     )
     file: MulterFile,
+    @Req() request: Request,
   ): Promise<PhotoUploadResponseDto> {
-    return this.personService.uploadPhoto(id, file);
+    // Extrai o token do request (adicionado pelo AuthGuard)
+    const token = (request as any).token;
+    return this.personService.uploadPhoto(id, file, token);
   }
 
   @Delete(':id/photo')
@@ -204,8 +209,13 @@ export class PersonController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
   @ApiResponse({ status: 404, description: 'Person not found or photo does not exist' })
-  async deletePhoto(@Param('id') id: string): Promise<void> {
-    return this.personService.deletePhoto(id);
+  async deletePhoto(
+    @Param('id') id: string,
+    @Req() request: Request,
+  ): Promise<void> {
+    // Extrai o token do request (adicionado pelo AuthGuard)
+    const token = (request as any).token;
+    return this.personService.deletePhoto(id, token);
   }
 }
 

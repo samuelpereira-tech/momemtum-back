@@ -7,7 +7,9 @@ import {
   MaxLength,
   Matches,
   IsDateString,
+  IsOptional,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreatePersonDto {
   @ApiProperty({
@@ -26,66 +28,78 @@ export class CreatePersonDto {
     description: 'Email address (must be unique)',
     example: 'john.doe@example.com',
     maxLength: 255,
+    required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsEmail()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(255)
-  email: string;
+  email?: string;
 
   @ApiProperty({
     description: 'Mobile phone number (10-11 digits, without formatting)',
     example: '11987654321',
     pattern: '^[0-9]{10,11}$',
+    required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @Matches(/^[0-9]{10,11}$/, {
     message: 'Phone must be 10-11 digits without formatting',
   })
-  phone: string;
+  phone?: string;
 
   @ApiProperty({
     description: 'CPF number (11 digits, without formatting, must be unique)',
     example: '12345678901',
     pattern: '^[0-9]{11}$',
+    required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @Matches(/^[0-9]{11}$/, {
     message: 'CPF must be exactly 11 digits without formatting',
   })
-  cpf: string;
+  cpf?: string;
 
   @ApiProperty({
     description: 'Date of birth in ISO 8601 format (YYYY-MM-DD)',
     example: '1990-01-15',
+    required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsDateString()
-  @IsNotEmpty()
-  birthDate: string;
+  @IsOptional()
+  birthDate?: string;
 
   @ApiProperty({
     description: 'Emergency contact phone number (10-11 digits, without formatting)',
     example: '11987654322',
     pattern: '^[0-9]{10,11}$',
+    required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @Matches(/^[0-9]{10,11}$/, {
     message: 'Emergency contact must be 10-11 digits without formatting',
   })
-  emergencyContact: string;
+  emergencyContact?: string;
 
   @ApiProperty({
     description: 'Full address including street, number, complement, neighborhood, city, state, and ZIP code',
     example: 'Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567',
     minLength: 10,
     maxLength: 500,
+    required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MinLength(10)
   @MaxLength(500)
-  address: string;
+  address?: string;
 }
 

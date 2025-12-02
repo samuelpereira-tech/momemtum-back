@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { PersonController } from 'src/basic/controllers/person.controller';
 import { PersonService } from 'src/basic/services/person.service';
 import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
@@ -58,6 +59,18 @@ describe('PersonController', () => {
     getRawClient: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      if (key === 'SUPABASE_URL') {
+        return 'https://test.supabase.co';
+      }
+      if (key === 'SUPABASE_ANON_KEY') {
+        return 'test-anon-key';
+      }
+      return undefined;
+    }),
+  };
+
   const mockAuthGuard = {
     canActivate: jest.fn(() => true),
   };
@@ -73,6 +86,10 @@ describe('PersonController', () => {
         {
           provide: SupabaseService,
           useValue: mockSupabaseService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
         {
           provide: AuthGuard,
@@ -236,11 +253,13 @@ describe('PersonController', () => {
 
       mockPersonService.uploadPhoto.mockResolvedValue(mockPhotoUploadResponse);
 
-      const result = await controller.uploadPhoto(personId, mockFile);
+      const mockRequest = { token: 'test-token' } as any;
+      const result = await controller.uploadPhoto(personId, mockFile, mockRequest);
 
       expect(mockPersonService.uploadPhoto).toHaveBeenCalledWith(
         personId,
         mockFile,
+        'test-token',
       );
       expect(result).toEqual(mockPhotoUploadResponse);
     });
@@ -252,9 +271,10 @@ describe('PersonController', () => {
 
       mockPersonService.deletePhoto.mockResolvedValue(undefined);
 
-      await controller.deletePhoto(personId);
+      const mockRequest = { token: 'test-token' } as any;
+      await controller.deletePhoto(personId, mockRequest);
 
-      expect(mockPersonService.deletePhoto).toHaveBeenCalledWith(personId);
+      expect(mockPersonService.deletePhoto).toHaveBeenCalledWith(personId, 'test-token');
     });
   });
 });

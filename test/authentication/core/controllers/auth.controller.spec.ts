@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from 'src/authentication/core/controllers/auth.controller';
 import { AuthService } from 'src/authentication/core/services/auth.service';
 import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
@@ -27,6 +28,18 @@ describe('AuthController', () => {
     getClient: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      if (key === 'SUPABASE_URL') {
+        return 'https://test.supabase.co';
+      }
+      if (key === 'SUPABASE_ANON_KEY') {
+        return 'test-anon-key';
+      }
+      return undefined;
+    }),
+  };
+
   const mockAuthGuard = {
     canActivate: jest.fn(() => true),
   };
@@ -42,6 +55,10 @@ describe('AuthController', () => {
         {
           provide: SupabaseService,
           useValue: mockSupabaseService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
         {
           provide: AuthGuard,

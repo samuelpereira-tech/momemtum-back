@@ -60,8 +60,9 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('Invalid token');
       }
 
-      // Adiciona usuário à requisição
+      // Adiciona usuário e token à requisição
       request.user = data.user;
+      request.token = token; // Salva o token para uso posterior (ex: upload de arquivos)
       return true;
     } catch (error: any) {
       // Se já for uma UnauthorizedException, re-lança

@@ -8,12 +8,12 @@
 CREATE TABLE IF NOT EXISTS persons (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL UNIQUE,
-  phone VARCHAR(11) NOT NULL,
-  cpf VARCHAR(11) NOT NULL UNIQUE,
-  birth_date DATE NOT NULL,
-  emergency_contact VARCHAR(11) NOT NULL,
-  address VARCHAR(500) NOT NULL,
+  email VARCHAR(255) UNIQUE,
+  phone VARCHAR(11),
+  cpf VARCHAR(11) UNIQUE,
+  birth_date DATE,
+  emergency_contact VARCHAR(11),
+  address VARCHAR(500),
   photo_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -88,7 +88,13 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('person-photos', 'person-photos', true)
 ON CONFLICT (id) DO NOTHING;
 
+-- IMPORTANTE: Verifique se o RLS está habilitado no storage.objects
+-- Se necessário, execute: ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
 -- Política para permitir upload de fotos para usuários autenticados
+-- Remove política antiga se existir
+DROP POLICY IF EXISTS "Allow authenticated users to upload photos" ON storage.objects;
+
 CREATE POLICY "Allow authenticated users to upload photos"
   ON storage.objects
   FOR INSERT
@@ -96,6 +102,9 @@ CREATE POLICY "Allow authenticated users to upload photos"
   WITH CHECK (bucket_id = 'person-photos');
 
 -- Política para permitir leitura pública de fotos
+-- Remove política antiga se existir
+DROP POLICY IF EXISTS "Allow public read access to photos" ON storage.objects;
+
 CREATE POLICY "Allow public read access to photos"
   ON storage.objects
   FOR SELECT
@@ -103,6 +112,9 @@ CREATE POLICY "Allow public read access to photos"
   USING (bucket_id = 'person-photos');
 
 -- Política para permitir atualização de fotos para usuários autenticados
+-- Remove política antiga se existir
+DROP POLICY IF EXISTS "Allow authenticated users to update photos" ON storage.objects;
+
 CREATE POLICY "Allow authenticated users to update photos"
   ON storage.objects
   FOR UPDATE
@@ -111,6 +123,9 @@ CREATE POLICY "Allow authenticated users to update photos"
   WITH CHECK (bucket_id = 'person-photos');
 
 -- Política para permitir exclusão de fotos para usuários autenticados
+-- Remove política antiga se existir
+DROP POLICY IF EXISTS "Allow authenticated users to delete photos" ON storage.objects;
+
 CREATE POLICY "Allow authenticated users to delete photos"
   ON storage.objects
   FOR DELETE
