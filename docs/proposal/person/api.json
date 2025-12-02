@@ -1,0 +1,664 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Person API",
+    "version": "1.0.0",
+    "description": "API for managing persons and their photos"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/api/persons": {
+      "post": {
+        "summary": "Create a new person",
+        "description": "Creates a new person with the provided information. The photo can be uploaded separately using the photo upload endpoint.",
+        "operationId": "PersonController_create",
+        "tags": ["persons"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePersonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Person created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Person with this email or CPF already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List all persons",
+        "description": "Retrieves a list of all persons with pagination support",
+        "operationId": "PersonController_findAll",
+        "tags": ["persons"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (default: 10, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of persons retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPersonResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    },
+    "/api/persons/{id}": {
+      "get": {
+        "summary": "Get person by ID",
+        "description": "Retrieves a specific person by their ID",
+        "operationId": "PersonController_findOne",
+        "tags": ["persons"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Person unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Person retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Person not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update person",
+        "description": "Updates an existing person's information",
+        "operationId": "PersonController_update",
+        "tags": ["persons"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Person unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePersonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Person updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Person not found"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete person",
+        "description": "Deletes a person by their ID",
+        "operationId": "PersonController_remove",
+        "tags": ["persons"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Person unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Person deleted successfully"
+          },
+          "404": {
+            "description": "Person not found"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    },
+    "/api/persons/{id}/photo": {
+      "post": {
+        "summary": "Upload person photo",
+        "description": "Uploads or updates a photo for a specific person. Accepts image files (JPG, PNG, GIF) with a maximum size of 5MB.",
+        "operationId": "PersonController_uploadPhoto",
+        "tags": ["persons"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Person unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["photo"],
+                "properties": {
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Image file (JPG, PNG, GIF). Maximum size: 5MB"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Photo uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file format or size exceeds 5MB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Person not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large - File size exceeds 5MB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete person photo",
+        "description": "Removes the photo from a specific person",
+        "operationId": "PersonController_deletePhoto",
+        "tags": ["persons"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Person unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Photo deleted successfully"
+          },
+          "404": {
+            "description": "Person not found or photo does not exist"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreatePersonDto": {
+        "type": "object",
+        "required": [
+          "fullName",
+          "email",
+          "phone",
+          "cpf",
+          "birthDate",
+          "emergencyContact",
+          "address"
+        ],
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 255,
+            "description": "Full name of the person",
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "description": "Email address (must be unique)",
+            "example": "john.doe@example.com"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^[0-9]{10,11}$",
+            "description": "Mobile phone number (10-11 digits, without formatting)",
+            "example": "11987654321"
+          },
+          "cpf": {
+            "type": "string",
+            "pattern": "^[0-9]{11}$",
+            "description": "CPF number (11 digits, without formatting, must be unique)",
+            "example": "12345678901"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of birth in ISO 8601 format (YYYY-MM-DD)",
+            "example": "1990-01-15"
+          },
+          "emergencyContact": {
+            "type": "string",
+            "pattern": "^[0-9]{10,11}$",
+            "description": "Emergency contact phone number (10-11 digits, without formatting)",
+            "example": "11987654322"
+          },
+          "address": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500,
+            "description": "Full address including street, number, complement, neighborhood, city, state, and ZIP code",
+            "example": "Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567"
+          }
+        }
+      },
+      "UpdatePersonDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 255,
+            "description": "Full name of the person"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "description": "Email address (must be unique if changed)"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^[0-9]{10,11}$",
+            "description": "Mobile phone number (10-11 digits, without formatting)"
+          },
+          "cpf": {
+            "type": "string",
+            "pattern": "^[0-9]{11}$",
+            "description": "CPF number (11 digits, without formatting, must be unique if changed)"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of birth in ISO 8601 format (YYYY-MM-DD)"
+          },
+          "emergencyContact": {
+            "type": "string",
+            "pattern": "^[0-9]{10,11}$",
+            "description": "Emergency contact phone number (10-11 digits, without formatting)"
+          },
+          "address": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500,
+            "description": "Full address"
+          }
+        }
+      },
+      "PersonResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "john.doe@example.com"
+          },
+          "phone": {
+            "type": "string",
+            "example": "11987654321"
+          },
+          "cpf": {
+            "type": "string",
+            "example": "12345678901"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "example": "1990-01-15"
+          },
+          "emergencyContact": {
+            "type": "string",
+            "example": "11987654322"
+          },
+          "address": {
+            "type": "string",
+            "example": "Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567"
+          },
+          "photoUrl": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "URL to the person's photo (null if no photo uploaded)",
+            "example": "https://example.com/photos/person-123e4567-e89b-12d3-a456-426614174000.jpg"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp",
+            "example": "2024-01-15T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp",
+            "example": "2024-01-15T10:30:00.000Z"
+          }
+        }
+      },
+      "PhotoUploadResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Photo uploaded successfully"
+          },
+          "photoUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to the uploaded photo",
+            "example": "https://example.com/photos/person-123e4567-e89b-12d3-a456-426614174000.jpg"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          }
+        }
+      },
+      "PaginatedPersonResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonResponseDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "example": 1
+              },
+              "limit": {
+                "type": "integer",
+                "example": 10
+              },
+              "total": {
+                "type": "integer",
+                "example": 100
+              },
+              "totalPages": {
+                "type": "integer",
+                "example": 10
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "example": 400
+          },
+          "message": {
+            "type": "string",
+            "example": "Invalid input data"
+          },
+          "error": {
+            "type": "string",
+            "example": "Bad Request"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of validation error messages",
+            "example": [
+              "email must be an email",
+              "cpf must match pattern ^[0-9]{11}$"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token obtained from authentication endpoint"
+      }
+    }
+  }
+}
+

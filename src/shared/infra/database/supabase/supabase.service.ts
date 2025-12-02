@@ -30,6 +30,10 @@ export class SupabaseService implements OnModuleInit {
     return this.client as unknown as SupabaseClient;
   }
 
+  getRawClient(): SupabaseClientType<any, 'public', any> {
+    return this.client;
+  }
+
   async healthCheck(): Promise<{ status: string; message: string; connected: boolean }> {
     try {
       // Verifica se o cliente foi inicializado

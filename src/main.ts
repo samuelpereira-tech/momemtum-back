@@ -5,6 +5,9 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Prefixo global para todas as rotas
+  app.setGlobalPrefix('api');
+
   // Configuração de CORS - permite requisições de qualquer origem
   app.enableCors({
     origin: true,
@@ -18,6 +21,7 @@ async function bootstrap() {
     .setDescription('API de autenticação escalável com suporte a múltiplos métodos (Email/Senha, OAuth, Magic Link, OTP)')
     .setVersion('1.0')
     .addTag('authentication', 'Endpoints de autenticação')
+    .addTag('persons', 'Endpoints de gerenciamento de pessoas')
     .addBearerAuth(
       {
         type: 'http',
