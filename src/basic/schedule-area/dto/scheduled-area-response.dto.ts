@@ -18,6 +18,14 @@ export class ResponsiblePersonDto {
     example: 'joao.silva@example.com',
   })
   email: string;
+
+  @ApiProperty({
+    format: 'uri',
+    nullable: true,
+    description: 'URL to the responsible person photo',
+    example: 'https://example.com/photos/person-123e4567-e89b-12d3-a456-426614174000.jpg',
+  })
+  photoUrl: string | null;
 }
 
 export class ScheduledAreaResponseDto {

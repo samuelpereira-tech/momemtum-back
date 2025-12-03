@@ -73,7 +73,7 @@ export class ScheduledAreaService {
     let query = supabaseClient
       .from(this.tableName)
       .select(
-        '*, responsible_person:persons(id, full_name, email)',
+        '*, responsible_person:persons(id, full_name, email, photo_url)',
         { count: 'exact' },
       );
 
@@ -108,7 +108,7 @@ export class ScheduledAreaService {
 
     const { data, error } = await supabaseClient
       .from(this.tableName)
-      .select('*, responsible_person:persons(id, full_name, email)')
+      .select('*, responsible_person:persons(id, full_name, email, photo_url)')
       .eq('id', id)
       .single();
 
@@ -162,7 +162,7 @@ export class ScheduledAreaService {
       .from(this.tableName)
       .update(updateData)
       .eq('id', id)
-      .select('*, responsible_person:persons(id, full_name, email)')
+      .select('*, responsible_person:persons(id, full_name, email, photo_url)')
       .single();
 
     if (error) {
@@ -310,7 +310,7 @@ export class ScheduledAreaService {
       .from(this.tableName)
       .update({ favorite })
       .eq('id', id)
-      .select('*, responsible_person:persons(id, full_name, email)')
+      .select('*, responsible_person:persons(id, full_name, email, photo_url)')
       .single();
 
     if (error) {
@@ -339,6 +339,7 @@ export class ScheduledAreaService {
         id: data.responsible_person.id,
         fullName: data.responsible_person.full_name,
         email: data.responsible_person.email,
+        photoUrl: data.responsible_person.photo_url || null,
       };
     }
 
