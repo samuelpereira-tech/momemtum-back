@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { ScheduledAbsenceController } from 'src/basic/scheduled-absence/controllers/scheduled-absence.controller';
 import { ScheduledAbsenceService } from 'src/basic/scheduled-absence/services/scheduled-absence.service';
 import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
+import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.service';
 import { CreateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/create-scheduled-absence.dto';
 import { UpdateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/update-scheduled-absence.dto';
 import {
@@ -50,6 +52,23 @@ describe('ScheduledAbsenceController', () => {
     remove: jest.fn(),
   };
 
+  const mockSupabaseService = {
+    getClient: jest.fn(),
+    getRawClient: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      if (key === 'SUPABASE_URL') {
+        return 'https://test.supabase.co';
+      }
+      if (key === 'SUPABASE_ANON_KEY') {
+        return 'test-anon-key';
+      }
+      return undefined;
+    }),
+  };
+
   const mockAuthGuard = {
     canActivate: jest.fn(() => true),
   };
@@ -61,6 +80,14 @@ describe('ScheduledAbsenceController', () => {
         {
           provide: ScheduledAbsenceService,
           useValue: mockScheduledAbsenceService,
+        },
+        {
+          provide: SupabaseService,
+          useValue: mockSupabaseService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
         {
           provide: AuthGuard,

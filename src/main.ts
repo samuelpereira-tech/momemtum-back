@@ -34,6 +34,7 @@ async function bootstrap() {
     .addTag('persons', 'Endpoints de gerenciamento de pessoas')
     .addTag('scheduled-absences', 'Endpoints de gerenciamento de ausências agendadas')
     .addTag('absence-types', 'Endpoints de gerenciamento de tipos de ausência')
+    .addTag('scheduled-areas', 'Endpoints de gerenciamento de áreas de escala')
     .addBearerAuth(
       {
         type: 'http',

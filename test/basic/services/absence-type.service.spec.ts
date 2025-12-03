@@ -567,31 +567,18 @@ describe('AbsenceTypeService', () => {
         }),
       });
 
-      // Mock name check (from update - not needed since we're only updating active)
+      // Mock update - this is the 3rd call to from()
       mockClient.from.mockReturnValueOnce({
-        select: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            neq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({ data: null }),
+            select: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({
+                data: { ...mockAbsenceTypeData, active: false },
+                error: null,
+              }),
             }),
           }),
         }),
-      });
-
-      // Mock update - this is the 4th call to from()
-      const mockUpdate = jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { ...mockAbsenceTypeData, active: false },
-              error: null,
-            }),
-          }),
-        }),
-      });
-
-      mockClient.from.mockReturnValueOnce({
-        update: mockUpdate,
       });
 
       mockSupabaseService.getRawClient.mockReturnValue(mockClient);
