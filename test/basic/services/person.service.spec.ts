@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PersonService } from 'src/basic/services/person.service';
+import { PersonService } from 'src/basic/person/services/person.service';
 import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.service';
 import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { CreatePersonDto } from 'src/basic/dto/create-person.dto';
-import { UpdatePersonDto } from 'src/basic/dto/update-person.dto';
+import { CreatePersonDto } from 'src/basic/person/dto/create-person.dto';
+import { UpdatePersonDto } from 'src/basic/person/dto/update-person.dto';
 
 describe('PersonService', () => {
   let service: PersonService;

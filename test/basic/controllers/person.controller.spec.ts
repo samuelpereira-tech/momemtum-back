@@ -1,16 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { PersonController } from 'src/basic/controllers/person.controller';
-import { PersonService } from 'src/basic/services/person.service';
+import { PersonController } from 'src/basic/person/controllers/person.controller';
+import { PersonService } from 'src/basic/person/services/person.service';
 import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
 import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.service';
-import { CreatePersonDto } from 'src/basic/dto/create-person.dto';
-import { UpdatePersonDto } from 'src/basic/dto/update-person.dto';
+import { CreatePersonDto } from 'src/basic/person/dto/create-person.dto';
+import { UpdatePersonDto } from 'src/basic/person/dto/update-person.dto';
 import {
   PersonResponseDto,
   PhotoUploadResponseDto,
   PaginatedPersonResponseDto,
-} from 'src/basic/dto/person-response.dto';
+} from 'src/basic/person/dto/person-response.dto';
 
 describe('PersonController', () => {
   let controller: PersonController;

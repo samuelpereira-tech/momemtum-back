@@ -36,7 +36,7 @@ import {
   PhotoUploadResponseDto,
   PaginatedPersonResponseDto,
 } from '../dto/person-response.dto';
-import { AuthGuard } from '../../authentication/core/guards/auth.guard';
+import { AuthGuard } from '../../../authentication/core/guards/auth.guard';
 import type { MulterFile } from '../interfaces/file.interface';
 
 @ApiTags('persons')

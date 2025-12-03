@@ -1,0 +1,1083 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Scheduled Absence API",
+    "version": "1.0.0",
+    "description": "API for managing scheduled absences (férias, feriados, licenças, etc.) and absence types"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/api/scheduled-absences": {
+      "post": {
+        "summary": "Create a new scheduled absence",
+        "description": "Creates a new scheduled absence for a person",
+        "operationId": "ScheduledAbsenceController_create",
+        "tags": ["scheduled-absences"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduledAbsenceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scheduled absence created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledAbsenceResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Person or absence type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Overlapping absence dates for the same person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List all scheduled absences",
+        "description": "Retrieves a paginated list of scheduled absences with optional filters",
+        "operationId": "ScheduledAbsenceController_findAll",
+        "tags": ["scheduled-absences"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (default: 10, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "name": "personId",
+            "in": "query",
+            "description": "Filter by person ID (UUID)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "personName",
+            "in": "query",
+            "description": "Filter by person name (partial match, case-insensitive)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "absenceTypeId",
+            "in": "query",
+            "description": "Filter by absence type ID (UUID)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Filter by start date (ISO 8601 format YYYY-MM-DD). Returns absences starting from this date",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "Filter by end date (ISO 8601 format YYYY-MM-DD). Returns absences ending before or on this date",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "dateRange",
+            "in": "query",
+            "description": "Filter by date range. Returns absences that overlap with the specified date range. Format: YYYY-MM-DD,YYYY-MM-DD",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2},\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2024-12-01,2024-12-31"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of scheduled absences retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedScheduledAbsenceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    },
+    "/api/scheduled-absences/{id}": {
+      "get": {
+        "summary": "Get scheduled absence by ID",
+        "description": "Retrieves a specific scheduled absence by its ID",
+        "operationId": "ScheduledAbsenceController_findOne",
+        "tags": ["scheduled-absences"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Scheduled absence unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled absence retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledAbsenceResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled absence not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update scheduled absence",
+        "description": "Updates an existing scheduled absence",
+        "operationId": "ScheduledAbsenceController_update",
+        "tags": ["scheduled-absences"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Scheduled absence unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduledAbsenceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scheduled absence updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledAbsenceResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Scheduled absence, person, or absence type not found"
+          },
+          "409": {
+            "description": "Conflict - Overlapping absence dates for the same person"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete scheduled absence",
+        "description": "Deletes a scheduled absence by its ID",
+        "operationId": "ScheduledAbsenceController_remove",
+        "tags": ["scheduled-absences"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Scheduled absence unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled absence deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Scheduled absence deleted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled absence not found"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    },
+    "/api/absence-types": {
+      "post": {
+        "summary": "Create a new absence type",
+        "description": "Creates a new absence type (e.g., Férias, Feriado, Licença)",
+        "operationId": "AbsenceTypeController_create",
+        "tags": ["absence-types"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAbsenceTypeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Absence type created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceTypeResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Absence type with this name already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List all absence types",
+        "description": "Retrieves a paginated list of absence types with optional filters",
+        "operationId": "AbsenceTypeController_findAll",
+        "tags": ["absence-types"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (default: 10, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filter by name (partial match, case-insensitive)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "description": "Filter by active status",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of absence types retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedAbsenceTypeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    },
+    "/api/absence-types/{id}": {
+      "get": {
+        "summary": "Get absence type by ID",
+        "description": "Retrieves a specific absence type by its ID",
+        "operationId": "AbsenceTypeController_findOne",
+        "tags": ["absence-types"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Absence type unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Absence type retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceTypeResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Absence type not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update absence type",
+        "description": "Updates an existing absence type",
+        "operationId": "AbsenceTypeController_update",
+        "tags": ["absence-types"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Absence type unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAbsenceTypeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Absence type updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceTypeResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "404": {
+            "description": "Absence type not found"
+          },
+          "409": {
+            "description": "Conflict - Absence type with this name already exists"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete absence type",
+        "description": "Deletes an absence type by its ID. Cannot delete if there are scheduled absences using this type.",
+        "operationId": "AbsenceTypeController_remove",
+        "tags": ["absence-types"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Absence type unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Absence type deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Absence type deleted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Absence type not found"
+          },
+          "409": {
+            "description": "Conflict - Cannot delete absence type that is being used by scheduled absences"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    },
+    "/api/absence-types/{id}/toggle": {
+      "patch": {
+        "summary": "Toggle absence type active status",
+        "description": "Toggles the active status of an absence type",
+        "operationId": "AbsenceTypeController_toggle",
+        "tags": ["absence-types"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Absence type unique identifier (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Absence type status toggled successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceTypeResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Absence type not found"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateScheduledAbsenceDto": {
+        "type": "object",
+        "required": [
+          "personId",
+          "absenceTypeId",
+          "startDate",
+          "endDate"
+        ],
+        "properties": {
+          "personId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the person who will be absent",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "absenceTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the absence type (e.g., Férias, Feriado, Licença)",
+            "example": "456e7890-e89b-12d3-a456-426614174001"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Start date of the absence in ISO 8601 format (YYYY-MM-DD)",
+            "example": "2024-12-20"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "End date of the absence in ISO 8601 format (YYYY-MM-DD). Must be greater than or equal to startDate",
+            "example": "2025-01-10"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Optional description or notes about the absence",
+            "example": "Férias de fim de ano"
+          }
+        }
+      },
+      "UpdateScheduledAbsenceDto": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the person who will be absent"
+          },
+          "absenceTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the absence type"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Start date of the absence in ISO 8601 format (YYYY-MM-DD)"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "End date of the absence in ISO 8601 format (YYYY-MM-DD). Must be greater than or equal to startDate"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Optional description or notes about the absence"
+          }
+        }
+      },
+      "ScheduledAbsenceResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier",
+            "example": "789e0123-e89b-12d3-a456-426614174002"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the person",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "person": {
+            "type": "object",
+            "description": "Person information (populated when requested)",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "fullName": {
+                "type": "string",
+                "example": "João Silva"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "example": "joao.silva@example.com"
+              }
+            }
+          },
+          "absenceTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the absence type",
+            "example": "456e7890-e89b-12d3-a456-426614174001"
+          },
+          "absenceType": {
+            "type": "object",
+            "description": "Absence type information (populated when requested)",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string",
+                "example": "Férias"
+              },
+              "color": {
+                "type": "string",
+                "example": "#79D9C7"
+              }
+            }
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Start date of the absence",
+            "example": "2024-12-20"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "End date of the absence",
+            "example": "2025-01-10"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Description or notes about the absence",
+            "example": "Férias de fim de ano"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp",
+            "example": "2024-12-01T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp",
+            "example": "2024-12-01T10:30:00.000Z"
+          }
+        }
+      },
+      "PaginatedScheduledAbsenceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduledAbsenceResponseDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "example": 1
+              },
+              "limit": {
+                "type": "integer",
+                "example": 10
+              },
+              "total": {
+                "type": "integer",
+                "example": 50
+              },
+              "totalPages": {
+                "type": "integer",
+                "example": 5
+              }
+            }
+          }
+        }
+      },
+      "CreateAbsenceTypeDto": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Name of the absence type (e.g., Férias, Feriado, Licença)",
+            "example": "Férias"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Optional description of the absence type",
+            "example": "Período de férias"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "description": "Hex color code for UI display (format: #RRGGBB)",
+            "default": "#AD82D9",
+            "example": "#79D9C7"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether the absence type is active and can be used",
+            "default": true,
+            "example": true
+          }
+        }
+      },
+      "UpdateAbsenceTypeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Name of the absence type"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Description of the absence type"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "description": "Hex color code for UI display (format: #RRGGBB)"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether the absence type is active and can be used"
+          }
+        }
+      },
+      "AbsenceTypeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier",
+            "example": "456e7890-e89b-12d3-a456-426614174001"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the absence type",
+            "example": "Férias"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Description of the absence type",
+            "example": "Período de férias"
+          },
+          "color": {
+            "type": "string",
+            "description": "Hex color code for UI display",
+            "example": "#79D9C7"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether the absence type is active and can be used",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp",
+            "example": "2024-01-15T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp",
+            "example": "2024-01-15T10:30:00.000Z"
+          }
+        }
+      },
+      "PaginatedAbsenceTypeResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbsenceTypeResponseDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "example": 1
+              },
+              "limit": {
+                "type": "integer",
+                "example": 10
+              },
+              "total": {
+                "type": "integer",
+                "example": 15
+              },
+              "totalPages": {
+                "type": "integer",
+                "example": 2
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "example": 400
+          },
+          "message": {
+            "type": "string",
+            "example": "Invalid input data"
+          },
+          "error": {
+            "type": "string",
+            "example": "Bad Request"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of validation error messages",
+            "example": [
+              "startDate must be a valid date",
+              "endDate must be greater than or equal to startDate"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token obtained from authentication endpoint"
+      }
+    }
+  }
+}
+

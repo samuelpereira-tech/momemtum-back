@@ -4,7 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { SupabaseService } from '../../shared/infra/database/supabase/supabase.service';
+import { SupabaseService } from '../../../shared/infra/database/supabase/supabase.service';
 import { CreatePersonDto } from '../dto/create-person.dto';
 import { UpdatePersonDto } from '../dto/update-person.dto';
 import {
@@ -12,7 +12,7 @@ import {
   PhotoUploadResponseDto,
   PaginatedPersonResponseDto,
 } from '../dto/person-response.dto';
-import { handleSupabaseError } from '../../authentication/core/utils/error-handler.util';
+import { handleSupabaseError } from '../../../authentication/core/utils/error-handler.util';
 import { MulterFile } from '../interfaces/file.interface';
 
 @Injectable()

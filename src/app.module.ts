@@ -4,7 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SupabaseModule } from './shared/infra/database/supabase/supabase.module';
 import { AuthenticationModule } from './authentication/core/authentication.module';
-import { PersonModule } from './basic/person.module';
+import { PersonModule } from './basic/person/person.module';
 
 @Module({
   imports: [
