@@ -195,17 +195,25 @@ export class PersonService {
       }
     }
 
+    // Helper para verificar se um valor é válido (não undefined, null ou string vazia)
+    const isValidValue = (value: any): boolean => {
+      return value !== undefined && value !== null && value !== '';
+    };
+
     const updateData: any = {};
-    if (updatePersonDto.fullName !== undefined)
+    if (isValidValue(updatePersonDto.fullName))
       updateData.full_name = updatePersonDto.fullName;
-    if (updatePersonDto.email !== undefined) updateData.email = updatePersonDto.email;
-    if (updatePersonDto.phone !== undefined) updateData.phone = updatePersonDto.phone;
-    if (updatePersonDto.cpf !== undefined) updateData.cpf = updatePersonDto.cpf;
-    if (updatePersonDto.birthDate !== undefined)
+    if (isValidValue(updatePersonDto.email))
+      updateData.email = updatePersonDto.email;
+    if (isValidValue(updatePersonDto.phone))
+      updateData.phone = updatePersonDto.phone;
+    if (isValidValue(updatePersonDto.cpf))
+      updateData.cpf = updatePersonDto.cpf;
+    if (isValidValue(updatePersonDto.birthDate))
       updateData.birth_date = updatePersonDto.birthDate;
-    if (updatePersonDto.emergencyContact !== undefined)
+    if (isValidValue(updatePersonDto.emergencyContact))
       updateData.emergency_contact = updatePersonDto.emergencyContact;
-    if (updatePersonDto.address !== undefined)
+    if (isValidValue(updatePersonDto.address))
       updateData.address = updatePersonDto.address;
 
     const { data, error } = await supabaseClient

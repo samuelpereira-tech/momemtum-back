@@ -8,6 +8,7 @@ import {
   IsDateString,
   IsOptional,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdatePersonDto {
   @ApiProperty({
@@ -29,6 +30,7 @@ export class UpdatePersonDto {
     maxLength: 255,
     required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsEmail()
   @IsOptional()
   @MaxLength(255)
@@ -40,6 +42,7 @@ export class UpdatePersonDto {
     pattern: '^[0-9]{10,11}$',
     required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @Matches(/^[0-9]{10,11}$/, {
@@ -53,6 +56,7 @@ export class UpdatePersonDto {
     pattern: '^[0-9]{11}$',
     required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @Matches(/^[0-9]{11}$/, {
@@ -65,6 +69,7 @@ export class UpdatePersonDto {
     example: '1990-01-15',
     required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsDateString()
   @IsOptional()
   birthDate?: string;
@@ -75,6 +80,7 @@ export class UpdatePersonDto {
     pattern: '^[0-9]{10,11}$',
     required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @Matches(/^[0-9]{10,11}$/, {
@@ -89,6 +95,7 @@ export class UpdatePersonDto {
     maxLength: 500,
     required: false,
   })
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @MinLength(10)
