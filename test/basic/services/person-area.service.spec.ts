@@ -9,6 +9,13 @@ import {
 import { CreatePersonAreaDto } from 'src/basic/person-area/dto/create-person-area.dto';
 import { UpdatePersonAreaDto } from 'src/basic/person-area/dto/update-person-area.dto';
 import { faker } from '@faker-js/faker';
+import {
+  createMockSupabaseClientWithoutStorage,
+  createMockSupabaseService,
+  createMockPersonAreaData,
+  createMockPersonAreaResponse,
+  createMockCreatePersonAreaDto,
+} from '../../mocks';
 
 describe('PersonAreaService', () => {
   let service: PersonAreaService;
@@ -20,22 +27,10 @@ describe('PersonAreaService', () => {
   const mockResponsibilityId1 = faker.string.uuid();
   const mockResponsibilityId2 = faker.string.uuid();
 
-  const mockPersonAreaData = {
+  const mockPersonAreaData = createMockPersonAreaData({
     id: mockPersonAreaId,
     person_id: mockPersonId,
     scheduled_area_id: mockScheduledAreaId,
-    created_at: faker.date.recent().toISOString(),
-    updated_at: faker.date.recent().toISOString(),
-    person: {
-      id: mockPersonId,
-      full_name: faker.person.fullName(),
-      email: faker.internet.email(),
-      photo_url: faker.internet.url(),
-    },
-    scheduled_area: {
-      id: mockScheduledAreaId,
-      name: faker.company.name(),
-    },
     responsibilities: [
       {
         responsibility: {
@@ -46,44 +41,15 @@ describe('PersonAreaService', () => {
         },
       },
     ],
-  };
+  });
 
-  const mockPersonAreaResponse = {
+  const mockPersonAreaResponse = createMockPersonAreaResponse({
     id: mockPersonAreaId,
     personId: mockPersonId,
-    person: {
-      id: mockPersonId,
-      fullName: mockPersonAreaData.person.full_name,
-      email: mockPersonAreaData.person.email,
-      photoUrl: mockPersonAreaData.person.photo_url,
-    },
     scheduledAreaId: mockScheduledAreaId,
-    scheduledArea: {
-      id: mockScheduledAreaId,
-      name: mockPersonAreaData.scheduled_area.name,
-    },
-    responsibilities: [
-      {
-        id: mockResponsibilityId1,
-        name: mockPersonAreaData.responsibilities[0].responsibility.name,
-        description: mockPersonAreaData.responsibilities[0].responsibility.description,
-        imageUrl: mockPersonAreaData.responsibilities[0].responsibility.image_url,
-      },
-    ],
-    createdAt: mockPersonAreaData.created_at,
-    updatedAt: mockPersonAreaData.updated_at,
-  };
+  });
 
-  const createMockSupabaseClient = () => {
-    const mockFrom = jest.fn();
-    return {
-      from: mockFrom,
-    };
-  };
-
-  const mockSupabaseService = {
-    getRawClient: jest.fn(),
-  };
+  const mockSupabaseService = createMockSupabaseService();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -109,13 +75,13 @@ describe('PersonAreaService', () => {
   });
 
   describe('create', () => {
-    const createPersonAreaDto: CreatePersonAreaDto = {
+    const createPersonAreaDto = createMockCreatePersonAreaDto({
       personId: mockPersonId,
       responsibilityIds: [mockResponsibilityId1, mockResponsibilityId2],
-    };
+    });
 
     it('should create person area association successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -243,7 +209,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw NotFoundException if scheduled area not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockImplementation((table: string) => {
         if (table === 'scheduled_areas') {
@@ -272,7 +238,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw BadRequestException if person not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -330,7 +296,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw ConflictException if person already associated', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -405,7 +371,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw BadRequestException if responsibilities do not belong to area', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -494,7 +460,7 @@ describe('PersonAreaService', () => {
 
   describe('findAll', () => {
     it('should return paginated list of person areas', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -539,7 +505,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw NotFoundException if scheduled area not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -562,7 +528,7 @@ describe('PersonAreaService', () => {
 
   describe('findOne', () => {
     it('should return person area by ID', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -604,7 +570,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw NotFoundException if person area not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -647,7 +613,7 @@ describe('PersonAreaService', () => {
 
   describe('findByPersonId', () => {
     it('should return person area by person ID', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -695,7 +661,7 @@ describe('PersonAreaService', () => {
     };
 
     it('should update person responsibilities successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -813,7 +779,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw BadRequestException if responsibilities do not belong to area', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -868,7 +834,7 @@ describe('PersonAreaService', () => {
 
   describe('remove', () => {
     it('should remove person from scheduled area successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {
@@ -921,7 +887,7 @@ describe('PersonAreaService', () => {
     });
 
     it('should throw NotFoundException if person area not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       let callCount = 0;
 
       mockClient.from.mockImplementation((table: string) => {

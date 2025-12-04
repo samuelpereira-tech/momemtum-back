@@ -5,6 +5,14 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateScheduledAreaDto } from 'src/basic/schedule-area/dto/create-scheduled-area.dto';
 import { UpdateScheduledAreaDto } from 'src/basic/schedule-area/dto/update-scheduled-area.dto';
 import { faker } from '@faker-js/faker';
+import {
+  createMockSupabaseClient,
+  createMockSupabaseService,
+  createMockScheduledAreaData,
+  createMockScheduledAreaResponse,
+  createMockCreateScheduledAreaDto,
+  createMockFile,
+} from '../../mocks';
 
 describe('ScheduledAreaService', () => {
   let service: ScheduledAreaService;
@@ -13,24 +21,12 @@ describe('ScheduledAreaService', () => {
   const mockPersonId = faker.string.uuid();
   const mockScheduledAreaId = faker.string.uuid();
 
-  const mockScheduledAreaData = {
+  const mockScheduledAreaData = createMockScheduledAreaData({
     id: mockScheduledAreaId,
-    name: faker.company.name(),
-    description: faker.lorem.sentence(),
     responsible_person_id: mockPersonId,
-    image_url: faker.internet.url(),
-    favorite: faker.datatype.boolean(),
-    created_at: faker.date.recent().toISOString(),
-    updated_at: faker.date.recent().toISOString(),
-    responsible_person: {
-      id: mockPersonId,
-      full_name: faker.person.fullName(),
-      email: faker.internet.email(),
-      photo_url: faker.internet.url(),
-    },
-  };
+  });
 
-  const mockScheduledAreaResponse = {
+  const mockScheduledAreaResponse = createMockScheduledAreaResponse({
     id: mockScheduledAreaId,
     name: mockScheduledAreaData.name,
     description: mockScheduledAreaData.description,
@@ -45,28 +41,9 @@ describe('ScheduledAreaService', () => {
     favorite: mockScheduledAreaData.favorite,
     createdAt: mockScheduledAreaData.created_at,
     updatedAt: mockScheduledAreaData.updated_at,
-  };
+  });
 
-  const createMockSupabaseClient = () => {
-    const mockFrom = jest.fn();
-    const mockStorage = {
-      from: jest.fn(() => ({
-        upload: jest.fn(),
-        getPublicUrl: jest.fn(),
-        remove: jest.fn(),
-      })),
-    };
-
-    return {
-      from: mockFrom,
-      storage: mockStorage,
-    };
-  };
-
-  const mockSupabaseService = {
-    getRawClient: jest.fn(),
-    getClientWithToken: jest.fn(),
-  };
+  const mockSupabaseService = createMockSupabaseService();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -92,12 +69,12 @@ describe('ScheduledAreaService', () => {
   });
 
   describe('create', () => {
-    const createScheduledAreaDto: CreateScheduledAreaDto = {
+    const createScheduledAreaDto = createMockCreateScheduledAreaDto({
       name: mockScheduledAreaData.name,
       description: mockScheduledAreaData.description,
       responsiblePersonId: mockPersonId,
       favorite: mockScheduledAreaData.favorite,
-    };
+    });
 
     it('should create a scheduled area successfully', async () => {
       const mockClient = createMockSupabaseClient();
@@ -430,14 +407,7 @@ describe('ScheduledAreaService', () => {
   describe('uploadImage', () => {
     it('should upload image successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const mockFile: any = {
-        fieldname: 'image',
-        originalname: 'image.jpg',
-        encoding: '7bit',
-        mimetype: 'image/jpeg',
-        size: 1024 * 1024,
-        buffer: Buffer.from('fake-image-data'),
-      };
+      const mockFile = createMockFile({ fieldname: 'image' });
 
       // Mock findOne (called by uploadImage)
       mockClient.from.mockReturnValueOnce({

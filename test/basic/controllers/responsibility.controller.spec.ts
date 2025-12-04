@@ -6,76 +6,34 @@ import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
 import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.service';
 import { CreateResponsibilityDto } from 'src/basic/responsibilities/dto/create-responsibility.dto';
 import { UpdateResponsibilityDto } from 'src/basic/responsibilities/dto/update-responsibility.dto';
+import { faker } from '@faker-js/faker';
 import {
-  ResponsibilityResponseDto,
-  ImageUploadResponseDto,
-  PaginatedResponsibilityResponseDto,
-} from 'src/basic/responsibilities/dto/responsibility-response.dto';
+  createMockResponsibilityResponse,
+  createMockPaginatedResponsibilityResponse,
+  createMockImageUploadResponse,
+  createMockResponsibilityService,
+  createMockCreateResponsibilityDto,
+  createMockConfigService,
+  createMockAuthGuard,
+  createMockFile,
+} from '../../mocks';
 
 describe('ResponsibilityController', () => {
   let controller: ResponsibilityController;
   let service: ResponsibilityService;
 
-  const mockResponsibilityResponse: ResponsibilityResponseDto = {
-    id: '123e4567-e89b-12d3-a456-426614174000',
-    name: 'Responsabilidade de Produção',
-    description: 'Responsável por gerenciar a produção diária',
-    scheduledAreaId: '1c5fdd77-416e-49db-88ac-cdb8a849e8b3',
-    scheduledArea: {
-      id: '1c5fdd77-416e-49db-88ac-cdb8a849e8b3',
-      name: 'Área de Produção',
-    },
-    imageUrl: 'https://example.com/images/responsibility-123.jpg',
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
-  };
+  const mockResponsibilityId = faker.string.uuid();
+  const mockResponsibilityResponse = createMockResponsibilityResponse({ id: mockResponsibilityId });
+  const mockPaginatedResponse = createMockPaginatedResponsibilityResponse(1);
+  const mockImageUploadResponse = createMockImageUploadResponse(mockResponsibilityId);
 
-  const mockPaginatedResponse: PaginatedResponsibilityResponseDto = {
-    data: [mockResponsibilityResponse],
-    meta: {
-      page: 1,
-      limit: 10,
-      total: 1,
-      totalPages: 1,
-    },
-  };
-
-  const mockImageUploadResponse: ImageUploadResponseDto = {
-    message: 'Image uploaded successfully',
-    imageUrl: 'https://example.com/images/responsibility-123.jpg',
-    responsibilityId: '123e4567-e89b-12d3-a456-426614174000',
-  };
-
-  const mockResponsibilityService = {
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    update: jest.fn(),
-    remove: jest.fn(),
-    uploadImage: jest.fn(),
-    deleteImage: jest.fn(),
-  };
-
+  const mockResponsibilityService = createMockResponsibilityService();
   const mockSupabaseService = {
     getClient: jest.fn(),
     getRawClient: jest.fn(),
   };
-
-  const mockConfigService = {
-    get: jest.fn((key: string) => {
-      if (key === 'SUPABASE_URL') {
-        return 'https://test.supabase.co';
-      }
-      if (key === 'SUPABASE_ANON_KEY') {
-        return 'test-anon-key';
-      }
-      return undefined;
-    }),
-  };
-
-  const mockAuthGuard = {
-    canActivate: jest.fn(() => true),
-  };
+  const mockConfigService = createMockConfigService();
+  const mockAuthGuard = createMockAuthGuard();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -252,18 +210,7 @@ describe('ResponsibilityController', () => {
   describe('uploadImage', () => {
     it('should upload image successfully', async () => {
       const responsibilityId = '123e4567-e89b-12d3-a456-426614174000';
-      const mockFile: Express.Multer.File = {
-        fieldname: 'image',
-        originalname: 'image.jpg',
-        encoding: '7bit',
-        mimetype: 'image/jpeg',
-        size: 1024 * 1024,
-        buffer: Buffer.from('fake-image-data'),
-        destination: '',
-        filename: '',
-        path: '',
-        stream: null as any,
-      };
+      const mockFile = createMockFile({ fieldname: 'image' });
 
       mockResponsibilityService.uploadImage.mockResolvedValue(mockImageUploadResponse);
 

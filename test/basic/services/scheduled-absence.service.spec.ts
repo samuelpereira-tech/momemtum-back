@@ -9,6 +9,13 @@ import {
 import { CreateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/create-scheduled-absence.dto';
 import { UpdateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/update-scheduled-absence.dto';
 import { faker } from '@faker-js/faker';
+import {
+  createMockSupabaseClientWithoutStorage,
+  createMockSupabaseService,
+  createMockScheduledAbsenceData,
+  createMockScheduledAbsenceResponse,
+  createMockCreateScheduledAbsenceDto,
+} from '../../mocks';
 
 describe('ScheduledAbsenceService', () => {
   let service: ScheduledAbsenceService;
@@ -21,28 +28,15 @@ describe('ScheduledAbsenceService', () => {
   const startDate = faker.date.future().toISOString().split('T')[0];
   const endDate = faker.date.future({ refDate: startDate }).toISOString().split('T')[0];
 
-  const mockScheduledAbsenceData = {
+  const mockScheduledAbsenceData = createMockScheduledAbsenceData({
     id: mockScheduledAbsenceId,
     person_id: mockPersonId,
     absence_type_id: mockAbsenceTypeId,
     start_date: startDate,
     end_date: endDate,
-    description: faker.lorem.sentence(),
-    created_at: faker.date.recent().toISOString(),
-    updated_at: faker.date.recent().toISOString(),
-    person: {
-      id: mockPersonId,
-      full_name: faker.person.fullName(),
-      email: faker.internet.email(),
-    },
-    absence_type: {
-      id: mockAbsenceTypeId,
-      name: faker.lorem.word(),
-      color: faker.color.rgb(),
-    },
-  };
+  });
 
-  const mockScheduledAbsenceResponse = {
+  const mockScheduledAbsenceResponse = createMockScheduledAbsenceResponse({
     id: mockScheduledAbsenceId,
     personId: mockPersonId,
     absenceTypeId: mockAbsenceTypeId,
@@ -61,17 +55,9 @@ describe('ScheduledAbsenceService', () => {
       name: mockScheduledAbsenceData.absence_type.name,
       color: mockScheduledAbsenceData.absence_type.color,
     },
-  };
+  });
 
-  const createMockSupabaseClient = () => {
-    return {
-      from: jest.fn(),
-    };
-  };
-
-  const mockSupabaseService = {
-    getRawClient: jest.fn(),
-  };
+  const mockSupabaseService = createMockSupabaseService();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -97,16 +83,16 @@ describe('ScheduledAbsenceService', () => {
   });
 
   describe('create', () => {
-    const createScheduledAbsenceDto: CreateScheduledAbsenceDto = {
+    const createScheduledAbsenceDto = createMockCreateScheduledAbsenceDto({
       personId: mockPersonId,
       absenceTypeId: mockAbsenceTypeId,
       startDate: mockScheduledAbsenceData.start_date,
       endDate: mockScheduledAbsenceData.end_date,
       description: mockScheduledAbsenceData.description,
-    };
+    });
 
     it('should create a scheduled absence successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Mock person check
       mockClient.from.mockReturnValueOnce({
@@ -181,7 +167,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should throw NotFoundException if person not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -204,7 +190,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should throw NotFoundException if absence type not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Person exists
       mockClient.from.mockReturnValueOnce({
@@ -236,7 +222,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should throw BadRequestException if absence type is inactive', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Person exists
       mockClient.from.mockReturnValueOnce({
@@ -268,7 +254,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should throw ConflictException if dates overlap', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Person exists
       mockClient.from.mockReturnValueOnce({
@@ -315,7 +301,7 @@ describe('ScheduledAbsenceService', () => {
 
   describe('findAll', () => {
     it('should return paginated list of scheduled absences', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -348,7 +334,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should filter by personId', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -372,7 +358,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should filter by personName', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Mock scheduled absences query (called first to create the base query)
       mockClient.from.mockReturnValueOnce({
@@ -412,7 +398,7 @@ describe('ScheduledAbsenceService', () => {
 
   describe('findOne', () => {
     it('should return a scheduled absence by id', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -434,7 +420,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should throw NotFoundException if scheduled absence not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -466,7 +452,7 @@ describe('ScheduledAbsenceService', () => {
     };
 
     it('should update a scheduled absence successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Mock findOne
       mockClient.from.mockReturnValueOnce({
@@ -525,7 +511,7 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should throw ConflictException if dates overlap', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Mock findOne
       mockClient.from.mockReturnValueOnce({
@@ -564,7 +550,7 @@ describe('ScheduledAbsenceService', () => {
 
   describe('remove', () => {
     it('should delete a scheduled absence successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Mock findOne
       mockClient.from.mockReturnValueOnce({

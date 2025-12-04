@@ -8,23 +8,21 @@ import {
 import { CreateAbsenceTypeDto } from 'src/basic/scheduled-absence/dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from 'src/basic/scheduled-absence/dto/update-absence-type.dto';
 import { faker } from '@faker-js/faker';
+import {
+  createMockSupabaseClientWithoutStorage,
+  createMockSupabaseService,
+  createMockAbsenceTypeData,
+  createMockAbsenceTypeResponse,
+  createMockCreateAbsenceTypeDto,
+} from '../../mocks';
 
 describe('AbsenceTypeService', () => {
   let service: AbsenceTypeService;
   let supabaseService: SupabaseService;
 
   const mockAbsenceTypeId = faker.string.uuid();
-  const mockAbsenceTypeData = {
-    id: mockAbsenceTypeId,
-    name: faker.lorem.word(),
-    description: faker.lorem.sentence(),
-    color: faker.color.rgb(),
-    active: faker.datatype.boolean(),
-    created_at: faker.date.recent().toISOString(),
-    updated_at: faker.date.recent().toISOString(),
-  };
-
-  const mockAbsenceTypeResponse = {
+  const mockAbsenceTypeData = createMockAbsenceTypeData({ id: mockAbsenceTypeId });
+  const mockAbsenceTypeResponse = createMockAbsenceTypeResponse({
     id: mockAbsenceTypeId,
     name: mockAbsenceTypeData.name,
     description: mockAbsenceTypeData.description,
@@ -32,17 +30,9 @@ describe('AbsenceTypeService', () => {
     active: mockAbsenceTypeData.active,
     createdAt: mockAbsenceTypeData.created_at,
     updatedAt: mockAbsenceTypeData.updated_at,
-  };
+  });
 
-  const createMockSupabaseClient = () => {
-    return {
-      from: jest.fn(),
-    };
-  };
-
-  const mockSupabaseService = {
-    getRawClient: jest.fn(),
-  };
+  const mockSupabaseService = createMockSupabaseService();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -68,15 +58,15 @@ describe('AbsenceTypeService', () => {
   });
 
   describe('create', () => {
-    const createAbsenceTypeDto: CreateAbsenceTypeDto = {
+    const createAbsenceTypeDto = createMockCreateAbsenceTypeDto({
       name: mockAbsenceTypeData.name,
       description: mockAbsenceTypeData.description,
       color: mockAbsenceTypeData.color,
       active: mockAbsenceTypeData.active,
-    };
+    });
 
     it('should create an absence type successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       // Mock name check - no existing name
       mockClient.from.mockReturnValueOnce({
@@ -108,7 +98,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should throw ConflictException if name already exists', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -131,7 +121,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should use default color if not provided', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const dtoWithoutColor: CreateAbsenceTypeDto = {
         name: 'Feriado',
       };
@@ -165,7 +155,7 @@ describe('AbsenceTypeService', () => {
 
   describe('findAll', () => {
     it('should return paginated list of absence types', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const mockData = [mockAbsenceTypeData];
 
       mockClient.from.mockReturnValue({
@@ -210,7 +200,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should filter by name', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -234,7 +224,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should filter by active status', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -260,7 +250,7 @@ describe('AbsenceTypeService', () => {
 
   describe('findOne', () => {
     it('should return an absence type by id', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = mockAbsenceTypeId;
 
       mockClient.from.mockReturnValue({
@@ -283,7 +273,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should throw NotFoundException if absence type not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = faker.string.uuid();
 
       mockClient.from.mockReturnValue({
@@ -315,7 +305,7 @@ describe('AbsenceTypeService', () => {
     };
 
     it('should update an absence type successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = mockAbsenceTypeId;
 
       let callCount = 0;
@@ -374,7 +364,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should throw NotFoundException if absence type not found', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = faker.string.uuid();
 
       mockClient.from.mockReturnValue({
@@ -396,7 +386,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should throw ConflictException if name already exists', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = mockAbsenceTypeId;
       const updateDto: UpdateAbsenceTypeDto = {
         name: 'Existing Name',
@@ -443,7 +433,7 @@ describe('AbsenceTypeService', () => {
 
   describe('remove', () => {
     it('should delete an absence type successfully', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = mockAbsenceTypeId;
 
       let callCount = 0;
@@ -490,7 +480,7 @@ describe('AbsenceTypeService', () => {
     });
 
     it('should throw ConflictException if absence type is in use', async () => {
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = mockAbsenceTypeId;
 
       let callCount = 0;
@@ -542,7 +532,7 @@ describe('AbsenceTypeService', () => {
     it('should toggle active status from true to false', async () => {
       // Toggle calls findOne then update, so we can just test that it calls update with correct params
       // We'll mock findOne to return the current state, then mock update
-      const mockClient = createMockSupabaseClient();
+      const mockClient = createMockSupabaseClientWithoutStorage();
       const absenceTypeId = mockAbsenceTypeId;
 
       // Mock findOne (called by toggle)

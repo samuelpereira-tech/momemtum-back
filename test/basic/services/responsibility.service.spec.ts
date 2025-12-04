@@ -5,6 +5,14 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateResponsibilityDto } from 'src/basic/responsibilities/dto/create-responsibility.dto';
 import { UpdateResponsibilityDto } from 'src/basic/responsibilities/dto/update-responsibility.dto';
 import { faker } from '@faker-js/faker';
+import {
+  createMockSupabaseClient,
+  createMockSupabaseService,
+  createMockResponsibilityData,
+  createMockResponsibilityResponse,
+  createMockCreateResponsibilityDto,
+  createMockFile,
+} from '../../mocks';
 
 describe('ResponsibilityService', () => {
   let service: ResponsibilityService;
@@ -13,21 +21,12 @@ describe('ResponsibilityService', () => {
   const mockScheduledAreaId = faker.string.uuid();
   const mockResponsibilityId = faker.string.uuid();
 
-  const mockResponsibilityData = {
+  const mockResponsibilityData = createMockResponsibilityData({
     id: mockResponsibilityId,
-    name: faker.person.jobTitle(),
-    description: faker.lorem.sentence(),
     scheduled_area_id: mockScheduledAreaId,
-    image_url: faker.internet.url(),
-    created_at: faker.date.recent().toISOString(),
-    updated_at: faker.date.recent().toISOString(),
-    scheduled_area: {
-      id: mockScheduledAreaId,
-      name: faker.company.name(),
-    },
-  };
+  });
 
-  const mockResponsibilityResponse = {
+  const mockResponsibilityResponse = createMockResponsibilityResponse({
     id: mockResponsibilityId,
     name: mockResponsibilityData.name,
     description: mockResponsibilityData.description,
@@ -39,28 +38,9 @@ describe('ResponsibilityService', () => {
     imageUrl: mockResponsibilityData.image_url,
     createdAt: mockResponsibilityData.created_at,
     updatedAt: mockResponsibilityData.updated_at,
-  };
+  });
 
-  const createMockSupabaseClient = () => {
-    const mockFrom = jest.fn();
-    const mockStorage = {
-      from: jest.fn(() => ({
-        upload: jest.fn(),
-        getPublicUrl: jest.fn(),
-        remove: jest.fn(),
-      })),
-    };
-
-    return {
-      from: mockFrom,
-      storage: mockStorage,
-    };
-  };
-
-  const mockSupabaseService = {
-    getRawClient: jest.fn(),
-    getClientWithToken: jest.fn(),
-  };
+  const mockSupabaseService = createMockSupabaseService();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -86,11 +66,11 @@ describe('ResponsibilityService', () => {
   });
 
   describe('create', () => {
-    const createResponsibilityDto: CreateResponsibilityDto = {
+    const createResponsibilityDto = createMockCreateResponsibilityDto({
       name: mockResponsibilityData.name,
       description: mockResponsibilityData.description,
       scheduledAreaId: mockScheduledAreaId,
-    };
+    });
 
     it('should create a responsibility successfully', async () => {
       const mockClient = createMockSupabaseClient();
@@ -500,18 +480,7 @@ describe('ResponsibilityService', () => {
   });
 
   describe('uploadImage', () => {
-    const mockFile: Express.Multer.File = {
-      fieldname: 'image',
-      originalname: faker.system.fileName({ extensionCount: 1 }),
-      encoding: '7bit',
-      mimetype: 'image/jpeg',
-      size: 1024 * 1024, // 1MB
-      buffer: Buffer.from('fake-image-data'),
-      destination: '',
-      filename: '',
-      path: '',
-      stream: null as any,
-    };
+    const mockFile = createMockFile({ fieldname: 'image' });
 
     it('should upload image successfully', async () => {
       const mockClient = createMockSupabaseClient();

@@ -5,6 +5,14 @@ import { ConflictException, NotFoundException, BadRequestException } from '@nest
 import { CreatePersonDto } from 'src/basic/person/dto/create-person.dto';
 import { UpdatePersonDto } from 'src/basic/person/dto/update-person.dto';
 import { faker } from '@faker-js/faker';
+import {
+  createMockSupabaseClient,
+  createMockQuery,
+  createMockSupabaseService,
+  createMockPersonData,
+  createMockPersonResponse,
+  createMockCreatePersonDto,
+} from '../../mocks';
 
 describe('PersonService', () => {
   let service: PersonService;
@@ -12,22 +20,9 @@ describe('PersonService', () => {
 
   // Mock data
   const mockPersonId = faker.string.uuid();
-  const mockPersonData = {
+  const mockPersonData = createMockPersonData({ id: mockPersonId });
+  const mockPersonResponse = createMockPersonResponse({
     id: mockPersonId,
-    full_name: faker.person.fullName(),
-    email: faker.internet.email(),
-    phone: faker.string.numeric(11),
-    cpf: faker.string.numeric(11),
-    birth_date: faker.date.birthdate({ min: 18, max: 65, mode: 'age' }).toISOString().split('T')[0],
-    emergency_contact: faker.string.numeric(11),
-    address: `${faker.location.streetAddress()}, ${faker.location.city()} - ${faker.location.state({ abbreviated: true })}, ${faker.location.zipCode()}`,
-    photo_url: null,
-    created_at: faker.date.recent().toISOString(),
-    updated_at: faker.date.recent().toISOString(),
-  };
-
-  const mockPersonResponse = {
-    id: mockPersonData.id,
     fullName: mockPersonData.full_name,
     email: mockPersonData.email,
     phone: mockPersonData.phone,
@@ -38,77 +33,9 @@ describe('PersonService', () => {
     photoUrl: mockPersonData.photo_url,
     createdAt: mockPersonData.created_at,
     updatedAt: mockPersonData.updated_at,
-  };
+  });
 
-  // Mock Supabase client chain
-  const createMockSupabaseClient = () => {
-    const mockFrom = jest.fn();
-    const mockStorage = {
-      from: jest.fn(() => ({
-        upload: jest.fn(),
-        getPublicUrl: jest.fn(),
-        remove: jest.fn(),
-      })),
-    };
-
-    return {
-      from: mockFrom,
-      storage: mockStorage,
-    };
-  };
-
-  // Helper to create a chainable mock query
-  const createMockQuery = (mockData: any, mockError: any = null) => {
-    return {
-      select: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          neq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: mockData,
-              error: mockError,
-            }),
-          }),
-          single: jest.fn().mockResolvedValue({
-            data: mockData,
-            error: mockError,
-          }),
-        }),
-        order: jest.fn().mockReturnValue({
-          range: jest.fn().mockResolvedValue({
-            data: mockData,
-            error: mockError,
-          }),
-        }),
-      }),
-      insert: jest.fn().mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          single: jest.fn().mockResolvedValue({
-            data: mockData,
-            error: mockError,
-          }),
-        }),
-      }),
-      update: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: mockData,
-              error: mockError,
-            }),
-          }),
-        }),
-      }),
-      delete: jest.fn().mockReturnValue({
-        eq: jest.fn().mockResolvedValue({
-          error: mockError,
-        }),
-      }),
-    };
-  };
-
-  const mockSupabaseService = {
-    getRawClient: jest.fn(),
-  };
+  const mockSupabaseService = createMockSupabaseService();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

@@ -6,11 +6,15 @@ import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
 import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.service';
 import { CreatePersonAreaDto } from 'src/basic/person-area/dto/create-person-area.dto';
 import { UpdatePersonAreaDto } from 'src/basic/person-area/dto/update-person-area.dto';
-import {
-  PersonAreaResponseDto,
-  PaginatedPersonAreaResponseDto,
-} from 'src/basic/person-area/dto/person-area-response.dto';
 import { faker } from '@faker-js/faker';
+import {
+  createMockPersonAreaResponse,
+  createMockPaginatedPersonAreaResponse,
+  createMockPersonAreaService,
+  createMockCreatePersonAreaDto,
+  createMockConfigService,
+  createMockAuthGuard,
+} from '../../mocks';
 
 describe('PersonAreaController', () => {
   let controller: PersonAreaController;
@@ -19,73 +23,22 @@ describe('PersonAreaController', () => {
   const mockPersonAreaId = faker.string.uuid();
   const mockPersonId = faker.string.uuid();
   const mockScheduledAreaId = faker.string.uuid();
-  const mockResponsibilityId = faker.string.uuid();
 
-  const mockPersonAreaResponse: PersonAreaResponseDto = {
+  const mockPersonAreaResponse = createMockPersonAreaResponse({
     id: mockPersonAreaId,
     personId: mockPersonId,
-    person: {
-      id: mockPersonId,
-      fullName: faker.person.fullName(),
-      email: faker.internet.email(),
-      photoUrl: faker.internet.url(),
-    },
     scheduledAreaId: mockScheduledAreaId,
-    scheduledArea: {
-      id: mockScheduledAreaId,
-      name: faker.company.name(),
-    },
-    responsibilities: [
-      {
-        id: mockResponsibilityId,
-        name: faker.person.jobTitle(),
-        description: faker.lorem.sentence(),
-        imageUrl: faker.internet.url(),
-      },
-    ],
-    createdAt: faker.date.recent().toISOString(),
-    updatedAt: faker.date.recent().toISOString(),
-  };
+  });
 
-  const mockPaginatedResponse: PaginatedPersonAreaResponseDto = {
-    data: [mockPersonAreaResponse],
-    meta: {
-      page: 1,
-      limit: 10,
-      total: 1,
-      totalPages: 1,
-    },
-  };
+  const mockPaginatedResponse = createMockPaginatedPersonAreaResponse(1);
 
-  const mockPersonAreaService = {
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    findByPersonId: jest.fn(),
-    update: jest.fn(),
-    remove: jest.fn(),
-  };
-
+  const mockPersonAreaService = createMockPersonAreaService();
   const mockSupabaseService = {
     getClient: jest.fn(),
     getRawClient: jest.fn(),
   };
-
-  const mockConfigService = {
-    get: jest.fn((key: string) => {
-      if (key === 'SUPABASE_URL') {
-        return 'https://test.supabase.co';
-      }
-      if (key === 'SUPABASE_ANON_KEY') {
-        return 'test-anon-key';
-      }
-      return undefined;
-    }),
-  };
-
-  const mockAuthGuard = {
-    canActivate: jest.fn(() => true),
-  };
+  const mockConfigService = createMockConfigService();
+  const mockAuthGuard = createMockAuthGuard();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

@@ -6,37 +6,22 @@ import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
 import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.service';
 import { CreateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/create-scheduled-absence.dto';
 import { UpdateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/update-scheduled-absence.dto';
+import { faker } from '@faker-js/faker';
 import {
-  ScheduledAbsenceResponseDto,
-  PaginatedScheduledAbsenceResponseDto,
-} from 'src/basic/scheduled-absence/dto/scheduled-absence-response.dto';
+  createMockScheduledAbsenceResponse,
+  createMockScheduledAbsenceService,
+  createMockCreateScheduledAbsenceDto,
+  createMockConfigService,
+  createMockAuthGuard,
+} from '../../mocks';
 
 describe('ScheduledAbsenceController', () => {
   let controller: ScheduledAbsenceController;
   let service: ScheduledAbsenceService;
 
-  const mockScheduledAbsenceResponse: ScheduledAbsenceResponseDto = {
-    id: '789e0123-e89b-12d3-a456-426614174002',
-    personId: '123e4567-e89b-12d3-a456-426614174000',
-    absenceTypeId: '456e7890-e89b-12d3-a456-426614174001',
-    startDate: '2024-12-20',
-    endDate: '2025-01-10',
-    description: 'Férias de fim de ano',
-    createdAt: '2024-12-01T10:30:00.000Z',
-    updatedAt: '2024-12-01T10:30:00.000Z',
-    person: {
-      id: '123e4567-e89b-12d3-a456-426614174000',
-      fullName: 'João Silva',
-      email: 'joao.silva@example.com',
-    },
-    absenceType: {
-      id: '456e7890-e89b-12d3-a456-426614174001',
-      name: 'Férias',
-      color: '#79D9C7',
-    },
-  };
-
-  const mockPaginatedResponse: PaginatedScheduledAbsenceResponseDto = {
+  const mockScheduledAbsenceId = faker.string.uuid();
+  const mockScheduledAbsenceResponse = createMockScheduledAbsenceResponse({ id: mockScheduledAbsenceId });
+  const mockPaginatedResponse = {
     data: [mockScheduledAbsenceResponse],
     page: 1,
     limit: 10,
@@ -44,34 +29,13 @@ describe('ScheduledAbsenceController', () => {
     totalPages: 1,
   };
 
-  const mockScheduledAbsenceService = {
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    update: jest.fn(),
-    remove: jest.fn(),
-  };
-
+  const mockScheduledAbsenceService = createMockScheduledAbsenceService();
   const mockSupabaseService = {
     getClient: jest.fn(),
     getRawClient: jest.fn(),
   };
-
-  const mockConfigService = {
-    get: jest.fn((key: string) => {
-      if (key === 'SUPABASE_URL') {
-        return 'https://test.supabase.co';
-      }
-      if (key === 'SUPABASE_ANON_KEY') {
-        return 'test-anon-key';
-      }
-      return undefined;
-    }),
-  };
-
-  const mockAuthGuard = {
-    canActivate: jest.fn(() => true),
-  };
+  const mockConfigService = createMockConfigService();
+  const mockAuthGuard = createMockAuthGuard();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -112,13 +76,13 @@ describe('ScheduledAbsenceController', () => {
 
   describe('create', () => {
     it('should create a scheduled absence', async () => {
-      const createScheduledAbsenceDto: CreateScheduledAbsenceDto = {
-        personId: '123e4567-e89b-12d3-a456-426614174000',
-        absenceTypeId: '456e7890-e89b-12d3-a456-426614174001',
-        startDate: '2024-12-20',
-        endDate: '2025-01-10',
-        description: 'Férias de fim de ano',
-      };
+      const createScheduledAbsenceDto = createMockCreateScheduledAbsenceDto({
+        personId: mockScheduledAbsenceResponse.personId,
+        absenceTypeId: mockScheduledAbsenceResponse.absenceTypeId,
+        startDate: mockScheduledAbsenceResponse.startDate,
+        endDate: mockScheduledAbsenceResponse.endDate,
+        description: mockScheduledAbsenceResponse.description,
+      });
 
       mockScheduledAbsenceService.create.mockResolvedValue(
         mockScheduledAbsenceResponse,
@@ -254,7 +218,7 @@ describe('ScheduledAbsenceController', () => {
 
   describe('findOne', () => {
     it('should return a scheduled absence by id', async () => {
-      const scheduledAbsenceId = '789e0123-e89b-12d3-a456-426614174002';
+      const scheduledAbsenceId = mockScheduledAbsenceId;
 
       mockScheduledAbsenceService.findOne.mockResolvedValue(
         mockScheduledAbsenceResponse,
@@ -271,7 +235,7 @@ describe('ScheduledAbsenceController', () => {
 
   describe('update', () => {
     it('should update a scheduled absence', async () => {
-      const scheduledAbsenceId = '789e0123-e89b-12d3-a456-426614174002';
+      const scheduledAbsenceId = mockScheduledAbsenceId;
       const updateScheduledAbsenceDto: UpdateScheduledAbsenceDto = {
         startDate: '2024-12-25',
         endDate: '2025-01-15',
@@ -303,7 +267,7 @@ describe('ScheduledAbsenceController', () => {
 
   describe('remove', () => {
     it('should delete a scheduled absence', async () => {
-      const scheduledAbsenceId = '789e0123-e89b-12d3-a456-426614174002';
+      const scheduledAbsenceId = mockScheduledAbsenceId;
 
       mockScheduledAbsenceService.remove.mockResolvedValue(undefined);
 

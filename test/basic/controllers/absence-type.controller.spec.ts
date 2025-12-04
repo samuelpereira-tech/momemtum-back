@@ -6,26 +6,22 @@ import { AuthGuard } from 'src/authentication/core/guards/auth.guard';
 import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.service';
 import { CreateAbsenceTypeDto } from 'src/basic/scheduled-absence/dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from 'src/basic/scheduled-absence/dto/update-absence-type.dto';
+import { faker } from '@faker-js/faker';
 import {
-  AbsenceTypeResponseDto,
-  PaginatedAbsenceTypeResponseDto,
-} from 'src/basic/scheduled-absence/dto/absence-type-response.dto';
+  createMockAbsenceTypeResponse,
+  createMockAbsenceTypeService,
+  createMockCreateAbsenceTypeDto,
+  createMockConfigService,
+  createMockAuthGuard,
+} from '../../mocks';
 
 describe('AbsenceTypeController', () => {
   let controller: AbsenceTypeController;
   let service: AbsenceTypeService;
 
-  const mockAbsenceTypeResponse: AbsenceTypeResponseDto = {
-    id: '456e7890-e89b-12d3-a456-426614174001',
-    name: 'Férias',
-    description: 'Período de férias',
-    color: '#79D9C7',
-    active: true,
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
-  };
-
-  const mockPaginatedResponse: PaginatedAbsenceTypeResponseDto = {
+  const mockAbsenceTypeId = faker.string.uuid();
+  const mockAbsenceTypeResponse = createMockAbsenceTypeResponse({ id: mockAbsenceTypeId });
+  const mockPaginatedResponse = {
     data: [mockAbsenceTypeResponse],
     page: 1,
     limit: 10,
@@ -33,35 +29,13 @@ describe('AbsenceTypeController', () => {
     totalPages: 1,
   };
 
-  const mockAbsenceTypeService = {
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    update: jest.fn(),
-    remove: jest.fn(),
-    toggle: jest.fn(),
-  };
-
+  const mockAbsenceTypeService = createMockAbsenceTypeService();
   const mockSupabaseService = {
     getClient: jest.fn(),
     getRawClient: jest.fn(),
   };
-
-  const mockConfigService = {
-    get: jest.fn((key: string) => {
-      if (key === 'SUPABASE_URL') {
-        return 'https://test.supabase.co';
-      }
-      if (key === 'SUPABASE_ANON_KEY') {
-        return 'test-anon-key';
-      }
-      return undefined;
-    }),
-  };
-
-  const mockAuthGuard = {
-    canActivate: jest.fn(() => true),
-  };
+  const mockConfigService = createMockConfigService();
+  const mockAuthGuard = createMockAuthGuard();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -100,12 +74,12 @@ describe('AbsenceTypeController', () => {
 
   describe('create', () => {
     it('should create an absence type', async () => {
-      const createAbsenceTypeDto: CreateAbsenceTypeDto = {
-        name: 'Férias',
-        description: 'Período de férias',
-        color: '#79D9C7',
-        active: true,
-      };
+      const createAbsenceTypeDto = createMockCreateAbsenceTypeDto({
+        name: mockAbsenceTypeResponse.name,
+        description: mockAbsenceTypeResponse.description,
+        color: mockAbsenceTypeResponse.color,
+        active: mockAbsenceTypeResponse.active,
+      });
 
       mockAbsenceTypeService.create.mockResolvedValue(mockAbsenceTypeResponse);
 
@@ -161,7 +135,7 @@ describe('AbsenceTypeController', () => {
 
   describe('findOne', () => {
     it('should return an absence type by id', async () => {
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
 
       mockAbsenceTypeService.findOne.mockResolvedValue(mockAbsenceTypeResponse);
 
@@ -174,7 +148,7 @@ describe('AbsenceTypeController', () => {
 
   describe('update', () => {
     it('should update an absence type', async () => {
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
       const updateAbsenceTypeDto: UpdateAbsenceTypeDto = {
         name: 'Férias Atualizado',
       };
@@ -199,7 +173,7 @@ describe('AbsenceTypeController', () => {
 
   describe('remove', () => {
     it('should delete an absence type', async () => {
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
 
       mockAbsenceTypeService.remove.mockResolvedValue(undefined);
 
@@ -212,7 +186,7 @@ describe('AbsenceTypeController', () => {
 
   describe('toggle', () => {
     it('should toggle active status', async () => {
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
       const toggledAbsenceType = {
         ...mockAbsenceTypeResponse,
         active: false,
