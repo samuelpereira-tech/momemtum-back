@@ -7,29 +7,31 @@ import {
 } from '@nestjs/common';
 import { CreateAbsenceTypeDto } from 'src/basic/scheduled-absence/dto/create-absence-type.dto';
 import { UpdateAbsenceTypeDto } from 'src/basic/scheduled-absence/dto/update-absence-type.dto';
+import { faker } from '@faker-js/faker';
 
 describe('AbsenceTypeService', () => {
   let service: AbsenceTypeService;
   let supabaseService: SupabaseService;
 
+  const mockAbsenceTypeId = faker.string.uuid();
   const mockAbsenceTypeData = {
-    id: '456e7890-e89b-12d3-a456-426614174001',
-    name: 'Férias',
-    description: 'Período de férias',
-    color: '#79D9C7',
-    active: true,
-    created_at: '2024-01-15T10:30:00.000Z',
-    updated_at: '2024-01-15T10:30:00.000Z',
+    id: mockAbsenceTypeId,
+    name: faker.lorem.word(),
+    description: faker.lorem.sentence(),
+    color: faker.color.rgb(),
+    active: faker.datatype.boolean(),
+    created_at: faker.date.recent().toISOString(),
+    updated_at: faker.date.recent().toISOString(),
   };
 
   const mockAbsenceTypeResponse = {
-    id: '456e7890-e89b-12d3-a456-426614174001',
-    name: 'Férias',
-    description: 'Período de férias',
-    color: '#79D9C7',
-    active: true,
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
+    id: mockAbsenceTypeId,
+    name: mockAbsenceTypeData.name,
+    description: mockAbsenceTypeData.description,
+    color: mockAbsenceTypeData.color,
+    active: mockAbsenceTypeData.active,
+    createdAt: mockAbsenceTypeData.created_at,
+    updatedAt: mockAbsenceTypeData.updated_at,
   };
 
   const createMockSupabaseClient = () => {
@@ -67,10 +69,10 @@ describe('AbsenceTypeService', () => {
 
   describe('create', () => {
     const createAbsenceTypeDto: CreateAbsenceTypeDto = {
-      name: 'Férias',
-      description: 'Período de férias',
-      color: '#79D9C7',
-      active: true,
+      name: mockAbsenceTypeData.name,
+      description: mockAbsenceTypeData.description,
+      color: mockAbsenceTypeData.color,
+      active: mockAbsenceTypeData.active,
     };
 
     it('should create an absence type successfully', async () => {
@@ -112,7 +114,7 @@ describe('AbsenceTypeService', () => {
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
             single: jest.fn().mockResolvedValue({
-              data: { id: 'existing-id' },
+              data: { id: faker.string.uuid() },
             }),
           }),
         }),
@@ -259,7 +261,7 @@ describe('AbsenceTypeService', () => {
   describe('findOne', () => {
     it('should return an absence type by id', async () => {
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -274,15 +276,15 @@ describe('AbsenceTypeService', () => {
 
       mockSupabaseService.getRawClient.mockReturnValue(mockClient);
 
-      const result = await service.findOne(absenceTypeId);
+      const result = await service.findOne(mockAbsenceTypeId);
 
       expect(result).toEqual(mockAbsenceTypeResponse);
-      expect(result.id).toBe(absenceTypeId);
+      expect(result.id).toBe(mockAbsenceTypeId);
     });
 
     it('should throw NotFoundException if absence type not found', async () => {
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = 'non-existent-id';
+      const absenceTypeId = faker.string.uuid();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -314,7 +316,7 @@ describe('AbsenceTypeService', () => {
 
     it('should update an absence type successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
 
       let callCount = 0;
       mockClient.from.mockImplementation(() => {
@@ -373,7 +375,7 @@ describe('AbsenceTypeService', () => {
 
     it('should throw NotFoundException if absence type not found', async () => {
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = 'non-existent-id';
+      const absenceTypeId = faker.string.uuid();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -395,7 +397,7 @@ describe('AbsenceTypeService', () => {
 
     it('should throw ConflictException if name already exists', async () => {
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
       const updateDto: UpdateAbsenceTypeDto = {
         name: 'Existing Name',
       };
@@ -442,7 +444,7 @@ describe('AbsenceTypeService', () => {
   describe('remove', () => {
     it('should delete an absence type successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
 
       let callCount = 0;
       mockClient.from.mockImplementation((table: string) => {
@@ -489,7 +491,7 @@ describe('AbsenceTypeService', () => {
 
     it('should throw ConflictException if absence type is in use', async () => {
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
 
       let callCount = 0;
       mockClient.from.mockImplementation((table: string) => {
@@ -541,7 +543,7 @@ describe('AbsenceTypeService', () => {
       // Toggle calls findOne then update, so we can just test that it calls update with correct params
       // We'll mock findOne to return the current state, then mock update
       const mockClient = createMockSupabaseClient();
-      const absenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
+      const absenceTypeId = mockAbsenceTypeId;
 
       // Mock findOne (called by toggle)
       mockClient.from.mockReturnValueOnce({

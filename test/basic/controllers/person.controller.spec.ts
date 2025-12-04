@@ -11,23 +11,25 @@ import {
   PhotoUploadResponseDto,
   PaginatedPersonResponseDto,
 } from 'src/basic/person/dto/person-response.dto';
+import { faker } from '@faker-js/faker';
 
 describe('PersonController', () => {
   let controller: PersonController;
   let service: PersonService;
 
+  const mockPersonId = faker.string.uuid();
   const mockPersonResponse: PersonResponseDto = {
-    id: '123e4567-e89b-12d3-a456-426614174000',
-    fullName: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '11987654321',
-    cpf: '12345678901',
-    birthDate: '1990-01-15',
-    emergencyContact: '11987654322',
-    address: 'Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567',
+    id: mockPersonId,
+    fullName: faker.person.fullName(),
+    email: faker.internet.email(),
+    phone: faker.string.numeric(11),
+    cpf: faker.string.numeric(11),
+    birthDate: faker.date.birthdate({ min: 18, max: 65, mode: 'age' }).toISOString().split('T')[0],
+    emergencyContact: faker.string.numeric(11),
+    address: `${faker.location.streetAddress()}, ${faker.location.city()} - ${faker.location.state({ abbreviated: true })}, ${faker.location.zipCode()}`,
     photoUrl: null,
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
+    createdAt: faker.date.recent().toISOString(),
+    updatedAt: faker.date.recent().toISOString(),
   };
 
   const mockPaginatedResponse: PaginatedPersonResponseDto = {
@@ -40,8 +42,8 @@ describe('PersonController', () => {
 
   const mockPhotoUploadResponse: PhotoUploadResponseDto = {
     message: 'Photo uploaded successfully',
-    photoUrl: 'https://example.com/photos/person-123.jpg',
-    personId: '123e4567-e89b-12d3-a456-426614174000',
+    photoUrl: faker.internet.url(),
+    personId: mockPersonId,
   };
 
   const mockPersonService = {
@@ -113,13 +115,13 @@ describe('PersonController', () => {
   describe('create', () => {
     it('should create a person', async () => {
       const createPersonDto: CreatePersonDto = {
-        fullName: 'John Doe',
-        email: 'john.doe@example.com',
-        phone: '11987654321',
-        cpf: '12345678901',
-        birthDate: '1990-01-15',
-        emergencyContact: '11987654322',
-        address: 'Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567',
+        fullName: mockPersonResponse.fullName,
+        email: mockPersonResponse.email,
+        phone: mockPersonResponse.phone,
+        cpf: mockPersonResponse.cpf,
+        birthDate: mockPersonResponse.birthDate,
+        emergencyContact: mockPersonResponse.emergencyContact,
+        address: mockPersonResponse.address,
       };
 
       mockPersonService.create.mockResolvedValue(mockPersonResponse);
@@ -187,7 +189,7 @@ describe('PersonController', () => {
 
   describe('findOne', () => {
     it('should return a person by id', async () => {
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
 
       mockPersonService.findOne.mockResolvedValue(mockPersonResponse);
 
@@ -200,14 +202,14 @@ describe('PersonController', () => {
 
   describe('update', () => {
     it('should update a person', async () => {
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
       const updatePersonDto: UpdatePersonDto = {
-        fullName: 'Jane Doe',
+        fullName: faker.person.fullName(),
       };
 
       const updatedPerson = {
         ...mockPersonResponse,
-        fullName: 'Jane Doe',
+        fullName: updatePersonDto.fullName,
       };
 
       mockPersonService.update.mockResolvedValue(updatedPerson);
@@ -219,13 +221,13 @@ describe('PersonController', () => {
         updatePersonDto,
       );
       expect(result).toEqual(updatedPerson);
-      expect(result.fullName).toBe('Jane Doe');
+      expect(result.fullName).toBe(updatePersonDto.fullName);
     });
   });
 
   describe('remove', () => {
     it('should delete a person', async () => {
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
 
       mockPersonService.remove.mockResolvedValue(undefined);
 
@@ -237,10 +239,10 @@ describe('PersonController', () => {
 
   describe('uploadPhoto', () => {
     it('should upload photo successfully', async () => {
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
       const mockFile: Express.Multer.File = {
         fieldname: 'photo',
-        originalname: 'photo.jpg',
+        originalname: faker.system.fileName({ extensionCount: 1 }),
         encoding: '7bit',
         mimetype: 'image/jpeg',
         size: 1024 * 1024,
@@ -253,13 +255,14 @@ describe('PersonController', () => {
 
       mockPersonService.uploadPhoto.mockResolvedValue(mockPhotoUploadResponse);
 
-      const mockRequest = { token: 'test-token' } as any;
+      const testToken = faker.string.alphanumeric(20);
+      const mockRequest = { token: testToken } as any;
       const result = await controller.uploadPhoto(personId, mockFile, mockRequest);
 
       expect(mockPersonService.uploadPhoto).toHaveBeenCalledWith(
         personId,
         mockFile,
-        'test-token',
+        testToken,
       );
       expect(result).toEqual(mockPhotoUploadResponse);
     });
@@ -267,14 +270,15 @@ describe('PersonController', () => {
 
   describe('deletePhoto', () => {
     it('should delete photo successfully', async () => {
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
 
       mockPersonService.deletePhoto.mockResolvedValue(undefined);
 
-      const mockRequest = { token: 'test-token' } as any;
+      const testToken = faker.string.alphanumeric(20);
+      const mockRequest = { token: testToken } as any;
       await controller.deletePhoto(personId, mockRequest);
 
-      expect(mockPersonService.deletePhoto).toHaveBeenCalledWith(personId, 'test-token');
+      expect(mockPersonService.deletePhoto).toHaveBeenCalledWith(personId, testToken);
     });
   });
 });

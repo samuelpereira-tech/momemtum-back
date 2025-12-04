@@ -8,40 +8,41 @@ import {
 } from '@nestjs/common';
 import { CreatePersonAreaDto } from 'src/basic/person-area/dto/create-person-area.dto';
 import { UpdatePersonAreaDto } from 'src/basic/person-area/dto/update-person-area.dto';
+import { faker } from '@faker-js/faker';
 
 describe('PersonAreaService', () => {
   let service: PersonAreaService;
   let supabaseService: SupabaseService;
 
-  const mockScheduledAreaId = 'def67890-e89b-12d3-a456-426614174004';
-  const mockPersonId = '123e4567-e89b-12d3-a456-426614174000';
-  const mockPersonAreaId = 'abc12345-e89b-12d3-a456-426614174003';
-  const mockResponsibilityId1 = '456e7890-e89b-12d3-a456-426614174001';
-  const mockResponsibilityId2 = '789e0123-e89b-12d3-a456-426614174002';
+  const mockScheduledAreaId = faker.string.uuid();
+  const mockPersonId = faker.string.uuid();
+  const mockPersonAreaId = faker.string.uuid();
+  const mockResponsibilityId1 = faker.string.uuid();
+  const mockResponsibilityId2 = faker.string.uuid();
 
   const mockPersonAreaData = {
     id: mockPersonAreaId,
     person_id: mockPersonId,
     scheduled_area_id: mockScheduledAreaId,
-    created_at: '2024-01-15T10:30:00.000Z',
-    updated_at: '2024-01-15T10:30:00.000Z',
+    created_at: faker.date.recent().toISOString(),
+    updated_at: faker.date.recent().toISOString(),
     person: {
       id: mockPersonId,
-      full_name: 'João Silva',
-      email: 'joao.silva@example.com',
-      photo_url: 'https://example.com/photos/person-123.jpg',
+      full_name: faker.person.fullName(),
+      email: faker.internet.email(),
+      photo_url: faker.internet.url(),
     },
     scheduled_area: {
       id: mockScheduledAreaId,
-      name: 'Área de Produção',
+      name: faker.company.name(),
     },
     responsibilities: [
       {
         responsibility: {
           id: mockResponsibilityId1,
-          name: 'Operador',
-          description: 'Responsável por operar equipamentos',
-          image_url: 'https://example.com/images/responsibility-456.jpg',
+          name: faker.person.jobTitle(),
+          description: faker.lorem.sentence(),
+          image_url: faker.internet.url(),
         },
       },
     ],
@@ -52,25 +53,25 @@ describe('PersonAreaService', () => {
     personId: mockPersonId,
     person: {
       id: mockPersonId,
-      fullName: 'João Silva',
-      email: 'joao.silva@example.com',
-      photoUrl: 'https://example.com/photos/person-123.jpg',
+      fullName: mockPersonAreaData.person.full_name,
+      email: mockPersonAreaData.person.email,
+      photoUrl: mockPersonAreaData.person.photo_url,
     },
     scheduledAreaId: mockScheduledAreaId,
     scheduledArea: {
       id: mockScheduledAreaId,
-      name: 'Área de Produção',
+      name: mockPersonAreaData.scheduled_area.name,
     },
     responsibilities: [
       {
         id: mockResponsibilityId1,
-        name: 'Operador',
-        description: 'Responsável por operar equipamentos',
-        imageUrl: 'https://example.com/images/responsibility-456.jpg',
+        name: mockPersonAreaData.responsibilities[0].responsibility.name,
+        description: mockPersonAreaData.responsibilities[0].responsibility.description,
+        imageUrl: mockPersonAreaData.responsibilities[0].responsibility.image_url,
       },
     ],
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
+    createdAt: mockPersonAreaData.created_at,
+    updatedAt: mockPersonAreaData.updated_at,
   };
 
   const createMockSupabaseClient = () => {
@@ -365,7 +366,7 @@ describe('PersonAreaService', () => {
               eq: jest.fn().mockReturnValue({
                 eq: jest.fn().mockReturnValue({
                   single: jest.fn().mockResolvedValue({
-                    data: { id: 'existing-id' }, // Already exists
+                    data: { id: faker.string.uuid() }, // Already exists
                     error: null,
                   }),
                 }),

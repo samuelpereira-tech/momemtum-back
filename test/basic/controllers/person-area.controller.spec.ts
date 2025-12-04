@@ -10,35 +10,41 @@ import {
   PersonAreaResponseDto,
   PaginatedPersonAreaResponseDto,
 } from 'src/basic/person-area/dto/person-area-response.dto';
+import { faker } from '@faker-js/faker';
 
 describe('PersonAreaController', () => {
   let controller: PersonAreaController;
   let service: PersonAreaService;
 
+  const mockPersonAreaId = faker.string.uuid();
+  const mockPersonId = faker.string.uuid();
+  const mockScheduledAreaId = faker.string.uuid();
+  const mockResponsibilityId = faker.string.uuid();
+
   const mockPersonAreaResponse: PersonAreaResponseDto = {
-    id: 'abc12345-e89b-12d3-a456-426614174003',
-    personId: '123e4567-e89b-12d3-a456-426614174000',
+    id: mockPersonAreaId,
+    personId: mockPersonId,
     person: {
-      id: '123e4567-e89b-12d3-a456-426614174000',
-      fullName: 'João Silva',
-      email: 'joao.silva@example.com',
-      photoUrl: 'https://example.com/photos/person-123.jpg',
+      id: mockPersonId,
+      fullName: faker.person.fullName(),
+      email: faker.internet.email(),
+      photoUrl: faker.internet.url(),
     },
-    scheduledAreaId: 'def67890-e89b-12d3-a456-426614174004',
+    scheduledAreaId: mockScheduledAreaId,
     scheduledArea: {
-      id: 'def67890-e89b-12d3-a456-426614174004',
-      name: 'Área de Produção',
+      id: mockScheduledAreaId,
+      name: faker.company.name(),
     },
     responsibilities: [
       {
-        id: '456e7890-e89b-12d3-a456-426614174001',
-        name: 'Operador',
-        description: 'Responsável por operar equipamentos',
-        imageUrl: 'https://example.com/images/responsibility-456.jpg',
+        id: mockResponsibilityId,
+        name: faker.person.jobTitle(),
+        description: faker.lorem.sentence(),
+        imageUrl: faker.internet.url(),
       },
     ],
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
+    createdAt: faker.date.recent().toISOString(),
+    updatedAt: faker.date.recent().toISOString(),
   };
 
   const mockPaginatedResponse: PaginatedPersonAreaResponseDto = {

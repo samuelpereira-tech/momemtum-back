@@ -4,46 +4,47 @@ import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.ser
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateScheduledAreaDto } from 'src/basic/schedule-area/dto/create-scheduled-area.dto';
 import { UpdateScheduledAreaDto } from 'src/basic/schedule-area/dto/update-scheduled-area.dto';
+import { faker } from '@faker-js/faker';
 
 describe('ScheduledAreaService', () => {
   let service: ScheduledAreaService;
   let supabaseService: SupabaseService;
 
-  const mockPersonId = '123e4567-e89b-12d3-a456-426614174000';
-  const mockScheduledAreaId = '1c5fdd77-416e-49db-88ac-cdb8a849e8b3';
+  const mockPersonId = faker.string.uuid();
+  const mockScheduledAreaId = faker.string.uuid();
 
   const mockScheduledAreaData = {
     id: mockScheduledAreaId,
-    name: 'Área de Produção',
-    description: 'Setor responsável pela produção',
+    name: faker.company.name(),
+    description: faker.lorem.sentence(),
     responsible_person_id: mockPersonId,
-    image_url: 'https://example.com/images/area-123.jpg',
-    favorite: false,
-    created_at: '2024-01-15T10:30:00.000Z',
-    updated_at: '2024-01-15T10:30:00.000Z',
+    image_url: faker.internet.url(),
+    favorite: faker.datatype.boolean(),
+    created_at: faker.date.recent().toISOString(),
+    updated_at: faker.date.recent().toISOString(),
     responsible_person: {
       id: mockPersonId,
-      full_name: 'João Silva',
-      email: 'joao.silva@example.com',
-      photo_url: 'https://example.com/photos/person-123.jpg',
+      full_name: faker.person.fullName(),
+      email: faker.internet.email(),
+      photo_url: faker.internet.url(),
     },
   };
 
   const mockScheduledAreaResponse = {
     id: mockScheduledAreaId,
-    name: 'Área de Produção',
-    description: 'Setor responsável pela produção',
+    name: mockScheduledAreaData.name,
+    description: mockScheduledAreaData.description,
     responsiblePersonId: mockPersonId,
     responsiblePerson: {
       id: mockPersonId,
-      fullName: 'João Silva',
-      email: 'joao.silva@example.com',
-      photoUrl: 'https://example.com/photos/person-123.jpg',
+      fullName: mockScheduledAreaData.responsible_person.full_name,
+      email: mockScheduledAreaData.responsible_person.email,
+      photoUrl: mockScheduledAreaData.responsible_person.photo_url,
     },
-    imageUrl: 'https://example.com/images/area-123.jpg',
-    favorite: false,
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
+    imageUrl: mockScheduledAreaData.image_url,
+    favorite: mockScheduledAreaData.favorite,
+    createdAt: mockScheduledAreaData.created_at,
+    updatedAt: mockScheduledAreaData.updated_at,
   };
 
   const createMockSupabaseClient = () => {
@@ -92,10 +93,10 @@ describe('ScheduledAreaService', () => {
 
   describe('create', () => {
     const createScheduledAreaDto: CreateScheduledAreaDto = {
-      name: 'Área de Produção',
-      description: 'Setor responsável pela produção',
+      name: mockScheduledAreaData.name,
+      description: mockScheduledAreaData.description,
       responsiblePersonId: mockPersonId,
-      favorite: false,
+      favorite: mockScheduledAreaData.favorite,
     };
 
     it('should create a scheduled area successfully', async () => {
@@ -128,9 +129,9 @@ describe('ScheduledAreaService', () => {
 
       const result = await service.create(createScheduledAreaDto);
 
-      expect(result.name).toBe('Área de Produção');
+      expect(result.name).toBe(createScheduledAreaDto.name);
       expect(result.responsiblePersonId).toBe(mockPersonId);
-      expect(result.favorite).toBe(false);
+      expect(result.favorite).toBe(createScheduledAreaDto.favorite);
     });
 
     it('should throw NotFoundException if responsible person not found', async () => {
@@ -283,9 +284,9 @@ describe('ScheduledAreaService', () => {
       const result = await service.findOne(mockScheduledAreaId);
 
       expect(result.id).toBe(mockScheduledAreaId);
-      expect(result.name).toBe('Área de Produção');
+      expect(result.name).toBe(mockScheduledAreaResponse.name);
       expect(result.responsiblePerson).toBeDefined();
-      expect(result.responsiblePerson?.photoUrl).toBe('https://example.com/photos/person-123.jpg');
+      expect(result.responsiblePerson?.photoUrl).toBe(mockScheduledAreaResponse.responsiblePerson.photoUrl);
     });
 
     it('should throw NotFoundException if scheduled area not found', async () => {
@@ -359,7 +360,7 @@ describe('ScheduledAreaService', () => {
     it('should throw NotFoundException if responsible person not found when updating', async () => {
       const mockClient = createMockSupabaseClient();
       const updateScheduledAreaDto: UpdateScheduledAreaDto = {
-        responsiblePersonId: 'non-existent-id',
+        responsiblePersonId: faker.string.uuid(),
       };
 
       // Mock findOne (called by update)

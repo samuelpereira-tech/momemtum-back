@@ -4,40 +4,41 @@ import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.ser
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateResponsibilityDto } from 'src/basic/responsibilities/dto/create-responsibility.dto';
 import { UpdateResponsibilityDto } from 'src/basic/responsibilities/dto/update-responsibility.dto';
+import { faker } from '@faker-js/faker';
 
 describe('ResponsibilityService', () => {
   let service: ResponsibilityService;
   let supabaseService: SupabaseService;
 
-  const mockScheduledAreaId = '1c5fdd77-416e-49db-88ac-cdb8a849e8b3';
-  const mockResponsibilityId = '123e4567-e89b-12d3-a456-426614174000';
+  const mockScheduledAreaId = faker.string.uuid();
+  const mockResponsibilityId = faker.string.uuid();
 
   const mockResponsibilityData = {
     id: mockResponsibilityId,
-    name: 'Responsabilidade de Produção',
-    description: 'Responsável por gerenciar a produção diária',
+    name: faker.person.jobTitle(),
+    description: faker.lorem.sentence(),
     scheduled_area_id: mockScheduledAreaId,
-    image_url: 'https://example.com/images/responsibility-123.jpg',
-    created_at: '2024-01-15T10:30:00.000Z',
-    updated_at: '2024-01-15T10:30:00.000Z',
+    image_url: faker.internet.url(),
+    created_at: faker.date.recent().toISOString(),
+    updated_at: faker.date.recent().toISOString(),
     scheduled_area: {
       id: mockScheduledAreaId,
-      name: 'Área de Produção',
+      name: faker.company.name(),
     },
   };
 
   const mockResponsibilityResponse = {
     id: mockResponsibilityId,
-    name: 'Responsabilidade de Produção',
-    description: 'Responsável por gerenciar a produção diária',
+    name: mockResponsibilityData.name,
+    description: mockResponsibilityData.description,
     scheduledAreaId: mockScheduledAreaId,
     scheduledArea: {
       id: mockScheduledAreaId,
-      name: 'Área de Produção',
+      name: mockResponsibilityData.scheduled_area.name,
     },
-    imageUrl: 'https://example.com/images/responsibility-123.jpg',
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
+    imageUrl: mockResponsibilityData.image_url,
+    createdAt: mockResponsibilityData.created_at,
+    updatedAt: mockResponsibilityData.updated_at,
   };
 
   const createMockSupabaseClient = () => {
@@ -86,8 +87,8 @@ describe('ResponsibilityService', () => {
 
   describe('create', () => {
     const createResponsibilityDto: CreateResponsibilityDto = {
-      name: 'Responsabilidade de Produção',
-      description: 'Responsável por gerenciar a produção diária',
+      name: mockResponsibilityData.name,
+      description: mockResponsibilityData.description,
       scheduledAreaId: mockScheduledAreaId,
     };
 
@@ -121,7 +122,7 @@ describe('ResponsibilityService', () => {
 
       const result = await service.create(createResponsibilityDto);
 
-      expect(result.name).toBe('Responsabilidade de Produção');
+      expect(result.name).toBe(createResponsibilityDto.name);
       expect(result.scheduledAreaId).toBe(mockScheduledAreaId);
     });
 
@@ -161,7 +162,7 @@ describe('ResponsibilityService', () => {
   describe('findAll', () => {
     it('should return paginated list of responsibilities', async () => {
       const mockClient = createMockSupabaseClient();
-      const mockData = [mockResponsibilityData, { ...mockResponsibilityData, id: 'another-id' }];
+      const mockData = [mockResponsibilityData, { ...mockResponsibilityData, id: faker.string.uuid() }];
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -297,8 +298,9 @@ describe('ResponsibilityService', () => {
 
       mockSupabaseService.getRawClient.mockReturnValue(mockClient);
 
-      await expect(service.findOne('non-existent-id')).rejects.toThrow(NotFoundException);
-      await expect(service.findOne('non-existent-id')).rejects.toThrow(
+      const nonExistentId = faker.string.uuid();
+      await expect(service.findOne(nonExistentId)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(nonExistentId)).rejects.toThrow(
         'Responsibility not found',
       );
     });
@@ -306,7 +308,7 @@ describe('ResponsibilityService', () => {
 
   describe('update', () => {
     const updateResponsibilityDto: UpdateResponsibilityDto = {
-      name: 'Responsabilidade Atualizada',
+      name: faker.person.jobTitle(),
     };
 
     it('should update a responsibility successfully', async () => {
@@ -336,7 +338,7 @@ describe('ResponsibilityService', () => {
                 eq: jest.fn().mockReturnValue({
                   select: jest.fn().mockReturnValue({
                     single: jest.fn().mockResolvedValue({
-                      data: { ...mockResponsibilityData, name: 'Responsabilidade Atualizada' },
+                      data: { ...mockResponsibilityData, name: updateResponsibilityDto.name },
                       error: null,
                     }),
                   }),
@@ -356,7 +358,7 @@ describe('ResponsibilityService', () => {
 
       const result = await service.update(mockResponsibilityId, updateResponsibilityDto);
 
-      expect(result.name).toBe('Responsabilidade Atualizada');
+      expect(result.name).toBe(updateResponsibilityDto.name);
     });
 
     it('should throw NotFoundException if responsibility not found', async () => {
@@ -375,7 +377,8 @@ describe('ResponsibilityService', () => {
 
       mockSupabaseService.getRawClient.mockReturnValue(mockClient);
 
-      await expect(service.update('non-existent-id', updateResponsibilityDto)).rejects.toThrow(
+      const nonExistentId = faker.string.uuid();
+      await expect(service.update(nonExistentId, updateResponsibilityDto)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -383,7 +386,7 @@ describe('ResponsibilityService', () => {
     it('should throw NotFoundException if scheduled area not found when updating', async () => {
       const mockClient = createMockSupabaseClient();
       const updateDto: UpdateResponsibilityDto = {
-        scheduledAreaId: 'non-existent-area-id',
+        scheduledAreaId: faker.string.uuid(),
       };
 
       let responsibilitiesCallCount = 0;
@@ -491,14 +494,15 @@ describe('ResponsibilityService', () => {
 
       mockSupabaseService.getRawClient.mockReturnValue(mockClient);
 
-      await expect(service.remove('non-existent-id')).rejects.toThrow(NotFoundException);
+      const nonExistentId = faker.string.uuid();
+      await expect(service.remove(nonExistentId)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('uploadImage', () => {
     const mockFile: Express.Multer.File = {
       fieldname: 'image',
-      originalname: 'image.jpg',
+      originalname: faker.system.fileName({ extensionCount: 1 }),
       encoding: '7bit',
       mimetype: 'image/jpeg',
       size: 1024 * 1024, // 1MB
@@ -511,7 +515,7 @@ describe('ResponsibilityService', () => {
 
     it('should upload image successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const publicUrl = 'https://example.com/images/responsibility-123.jpg';
+      const publicUrl = faker.internet.url();
 
       // Mock findOne
       let callCount = 0;
@@ -549,12 +553,13 @@ describe('ResponsibilityService', () => {
       // Mock storage
       mockClient.storage.from.mockReturnValue({
         upload: jest.fn().mockResolvedValue({
-          data: { path: 'responsibilities/responsibility-123.jpg' },
+          data: { path: `responsibilities/${faker.string.alphanumeric(10)}.jpg` },
           error: null,
         }),
         getPublicUrl: jest.fn().mockReturnValue({
           data: { publicUrl },
         }),
+        remove: jest.fn(),
       });
 
       mockSupabaseService.getRawClient.mockReturnValue(mockClient);
@@ -640,7 +645,7 @@ describe('ResponsibilityService', () => {
       const mockClient = createMockSupabaseClient();
       const responsibilityWithImage = {
         ...mockResponsibilityData,
-        image_url: 'https://example.com/images/responsibility-123.jpg',
+        image_url: faker.internet.url(),
       };
 
       let callCount = 0;
@@ -671,6 +676,8 @@ describe('ResponsibilityService', () => {
       });
 
       mockClient.storage.from.mockReturnValue({
+        upload: jest.fn(),
+        getPublicUrl: jest.fn(),
         remove: jest.fn().mockResolvedValue({
           error: null,
         }),

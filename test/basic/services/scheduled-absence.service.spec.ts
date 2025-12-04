@@ -8,33 +8,37 @@ import {
 } from '@nestjs/common';
 import { CreateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/create-scheduled-absence.dto';
 import { UpdateScheduledAbsenceDto } from 'src/basic/scheduled-absence/dto/update-scheduled-absence.dto';
+import { faker } from '@faker-js/faker';
 
 describe('ScheduledAbsenceService', () => {
   let service: ScheduledAbsenceService;
   let supabaseService: SupabaseService;
 
-  const mockPersonId = '123e4567-e89b-12d3-a456-426614174000';
-  const mockAbsenceTypeId = '456e7890-e89b-12d3-a456-426614174001';
-  const mockScheduledAbsenceId = '789e0123-e89b-12d3-a456-426614174002';
+  const mockPersonId = faker.string.uuid();
+  const mockAbsenceTypeId = faker.string.uuid();
+  const mockScheduledAbsenceId = faker.string.uuid();
+
+  const startDate = faker.date.future().toISOString().split('T')[0];
+  const endDate = faker.date.future({ refDate: startDate }).toISOString().split('T')[0];
 
   const mockScheduledAbsenceData = {
     id: mockScheduledAbsenceId,
     person_id: mockPersonId,
     absence_type_id: mockAbsenceTypeId,
-    start_date: '2024-12-20',
-    end_date: '2025-01-10',
-    description: 'Férias de fim de ano',
-    created_at: '2024-12-01T10:30:00.000Z',
-    updated_at: '2024-12-01T10:30:00.000Z',
+    start_date: startDate,
+    end_date: endDate,
+    description: faker.lorem.sentence(),
+    created_at: faker.date.recent().toISOString(),
+    updated_at: faker.date.recent().toISOString(),
     person: {
       id: mockPersonId,
-      full_name: 'João Silva',
-      email: 'joao.silva@example.com',
+      full_name: faker.person.fullName(),
+      email: faker.internet.email(),
     },
     absence_type: {
       id: mockAbsenceTypeId,
-      name: 'Férias',
-      color: '#79D9C7',
+      name: faker.lorem.word(),
+      color: faker.color.rgb(),
     },
   };
 
@@ -42,20 +46,20 @@ describe('ScheduledAbsenceService', () => {
     id: mockScheduledAbsenceId,
     personId: mockPersonId,
     absenceTypeId: mockAbsenceTypeId,
-    startDate: '2024-12-20',
-    endDate: '2025-01-10',
-    description: 'Férias de fim de ano',
-    createdAt: '2024-12-01T10:30:00.000Z',
-    updatedAt: '2024-12-01T10:30:00.000Z',
+    startDate: mockScheduledAbsenceData.start_date,
+    endDate: mockScheduledAbsenceData.end_date,
+    description: mockScheduledAbsenceData.description,
+    createdAt: mockScheduledAbsenceData.created_at,
+    updatedAt: mockScheduledAbsenceData.updated_at,
     person: {
       id: mockPersonId,
-      fullName: 'João Silva',
-      email: 'joao.silva@example.com',
+      fullName: mockScheduledAbsenceData.person.full_name,
+      email: mockScheduledAbsenceData.person.email,
     },
     absenceType: {
       id: mockAbsenceTypeId,
-      name: 'Férias',
-      color: '#79D9C7',
+      name: mockScheduledAbsenceData.absence_type.name,
+      color: mockScheduledAbsenceData.absence_type.color,
     },
   };
 
@@ -96,9 +100,9 @@ describe('ScheduledAbsenceService', () => {
     const createScheduledAbsenceDto: CreateScheduledAbsenceDto = {
       personId: mockPersonId,
       absenceTypeId: mockAbsenceTypeId,
-      startDate: '2024-12-20',
-      endDate: '2025-01-10',
-      description: 'Férias de fim de ano',
+      startDate: mockScheduledAbsenceData.start_date,
+      endDate: mockScheduledAbsenceData.end_date,
+      description: mockScheduledAbsenceData.description,
     };
 
     it('should create a scheduled absence successfully', async () => {
@@ -159,11 +163,13 @@ describe('ScheduledAbsenceService', () => {
     });
 
     it('should throw BadRequestException if endDate is before startDate', async () => {
+      const futureDate = faker.date.future().toISOString().split('T')[0];
+      const pastDate = faker.date.past().toISOString().split('T')[0];
       const invalidDto: CreateScheduledAbsenceDto = {
         personId: mockPersonId,
         absenceTypeId: mockAbsenceTypeId,
-        startDate: '2025-01-10',
-        endDate: '2024-12-20',
+        startDate: futureDate,
+        endDate: pastDate,
       };
 
       await expect(service.create(invalidDto)).rejects.toThrow(
@@ -443,10 +449,11 @@ describe('ScheduledAbsenceService', () => {
 
       mockSupabaseService.getRawClient.mockReturnValue(mockClient);
 
-      await expect(service.findOne('non-existent-id')).rejects.toThrow(
+      const nonExistentId = faker.string.uuid();
+      await expect(service.findOne(nonExistentId)).rejects.toThrow(
         NotFoundException,
       );
-      await expect(service.findOne('non-existent-id')).rejects.toThrow(
+      await expect(service.findOne(nonExistentId)).rejects.toThrow(
         'Scheduled absence not found',
       );
     });

@@ -4,38 +4,40 @@ import { SupabaseService } from 'src/shared/infra/database/supabase/supabase.ser
 import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreatePersonDto } from 'src/basic/person/dto/create-person.dto';
 import { UpdatePersonDto } from 'src/basic/person/dto/update-person.dto';
+import { faker } from '@faker-js/faker';
 
 describe('PersonService', () => {
   let service: PersonService;
   let supabaseService: SupabaseService;
 
   // Mock data
+  const mockPersonId = faker.string.uuid();
   const mockPersonData = {
-    id: '123e4567-e89b-12d3-a456-426614174000',
-    full_name: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '11987654321',
-    cpf: '12345678901',
-    birth_date: '1990-01-15',
-    emergency_contact: '11987654322',
-    address: 'Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567',
+    id: mockPersonId,
+    full_name: faker.person.fullName(),
+    email: faker.internet.email(),
+    phone: faker.string.numeric(11),
+    cpf: faker.string.numeric(11),
+    birth_date: faker.date.birthdate({ min: 18, max: 65, mode: 'age' }).toISOString().split('T')[0],
+    emergency_contact: faker.string.numeric(11),
+    address: `${faker.location.streetAddress()}, ${faker.location.city()} - ${faker.location.state({ abbreviated: true })}, ${faker.location.zipCode()}`,
     photo_url: null,
-    created_at: '2024-01-15T10:30:00.000Z',
-    updated_at: '2024-01-15T10:30:00.000Z',
+    created_at: faker.date.recent().toISOString(),
+    updated_at: faker.date.recent().toISOString(),
   };
 
   const mockPersonResponse = {
-    id: '123e4567-e89b-12d3-a456-426614174000',
-    fullName: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '11987654321',
-    cpf: '12345678901',
-    birthDate: '1990-01-15',
-    emergencyContact: '11987654322',
-    address: 'Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567',
-    photoUrl: null,
-    createdAt: '2024-01-15T10:30:00.000Z',
-    updatedAt: '2024-01-15T10:30:00.000Z',
+    id: mockPersonData.id,
+    fullName: mockPersonData.full_name,
+    email: mockPersonData.email,
+    phone: mockPersonData.phone,
+    cpf: mockPersonData.cpf,
+    birthDate: mockPersonData.birth_date,
+    emergencyContact: mockPersonData.emergency_contact,
+    address: mockPersonData.address,
+    photoUrl: mockPersonData.photo_url,
+    createdAt: mockPersonData.created_at,
+    updatedAt: mockPersonData.updated_at,
   };
 
   // Mock Supabase client chain
@@ -133,13 +135,13 @@ describe('PersonService', () => {
 
   describe('create', () => {
     const createPersonDto: CreatePersonDto = {
-      fullName: 'John Doe',
-      email: 'john.doe@example.com',
-      phone: '11987654321',
-      cpf: '12345678901',
-      birthDate: '1990-01-15',
-      emergencyContact: '11987654322',
-      address: 'Rua das Flores, 123, Apto 45, Centro, São Paulo - SP, 01234-567',
+      fullName: mockPersonData.full_name,
+      email: mockPersonData.email,
+      phone: mockPersonData.phone,
+      cpf: mockPersonData.cpf,
+      birthDate: mockPersonData.birth_date,
+      emergencyContact: mockPersonData.emergency_contact,
+      address: mockPersonData.address,
     };
 
     it('should create a person successfully', async () => {
@@ -197,7 +199,7 @@ describe('PersonService', () => {
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
             single: jest.fn().mockResolvedValue({
-              data: { id: 'existing-id' },
+              data: { id: faker.string.uuid() },
             }),
           }),
         }),
@@ -236,7 +238,7 @@ describe('PersonService', () => {
             select: jest.fn().mockReturnValue({
               eq: jest.fn().mockReturnValue({
                 single: jest.fn().mockResolvedValue({
-                  data: { id: 'existing-id' }, // CPF existe - should throw ConflictException
+                  data: { id: faker.string.uuid() }, // CPF existe - should throw ConflictException
                 }),
               }),
             }),
@@ -263,7 +265,7 @@ describe('PersonService', () => {
   describe('findAll', () => {
     it('should return paginated list of persons', async () => {
       const mockClient = createMockSupabaseClient();
-      const mockData = [mockPersonData, { ...mockPersonData, id: 'another-id' }];
+      const mockData = [mockPersonData, { ...mockPersonData, id: faker.string.uuid() }];
 
       // Mock count query
       mockClient.from.mockReturnValueOnce({
@@ -358,7 +360,7 @@ describe('PersonService', () => {
   describe('findOne', () => {
     it('should return a person by id', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -381,7 +383,7 @@ describe('PersonService', () => {
 
     it('should throw NotFoundException if person not found', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = 'non-existent-id';
+      const personId = faker.string.uuid();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -403,12 +405,12 @@ describe('PersonService', () => {
 
   describe('update', () => {
     const updatePersonDto: UpdatePersonDto = {
-      fullName: 'Jane Doe',
+      fullName: faker.person.fullName(),
     };
 
     it('should update a person successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
 
       // Mock findOne (check if person exists)
       let callCount = 0;
@@ -434,7 +436,7 @@ describe('PersonService', () => {
                 eq: jest.fn().mockReturnValue({
                   select: jest.fn().mockReturnValue({
                     single: jest.fn().mockResolvedValue({
-                      data: { ...mockPersonData, full_name: 'Jane Doe' },
+                      data: { ...mockPersonData, full_name: updatePersonDto.fullName },
                       error: null,
                     }),
                   }),
@@ -449,12 +451,12 @@ describe('PersonService', () => {
 
       const result = await service.update(personId, updatePersonDto);
 
-      expect(result.fullName).toBe('Jane Doe');
+      expect(result.fullName).toBe(updatePersonDto.fullName);
     });
 
     it('should throw NotFoundException if person not found', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = 'non-existent-id';
+      const personId = faker.string.uuid();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -476,9 +478,9 @@ describe('PersonService', () => {
 
     it('should throw ConflictException if email already exists', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
       const updateDto: UpdatePersonDto = {
-        email: 'existing@example.com',
+        email: faker.internet.email(),
       };
 
       let callCount = 0;
@@ -503,7 +505,7 @@ describe('PersonService', () => {
               eq: jest.fn().mockReturnValue({
                 neq: jest.fn().mockReturnValue({
                   single: jest.fn().mockResolvedValue({
-                    data: { id: 'other-id' },
+                    data: { id: faker.string.uuid() },
                   }),
                 }),
               }),
@@ -523,7 +525,7 @@ describe('PersonService', () => {
   describe('remove', () => {
     it('should delete a person successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
 
       let callCount = 0;
       mockClient.from.mockImplementation((table: string) => {
@@ -559,7 +561,7 @@ describe('PersonService', () => {
 
     it('should throw NotFoundException if person not found', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = 'non-existent-id';
+      const personId = faker.string.uuid();
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -581,7 +583,7 @@ describe('PersonService', () => {
   describe('uploadPhoto', () => {
     const mockFile: Express.Multer.File = {
       fieldname: 'photo',
-      originalname: 'photo.jpg',
+      originalname: faker.system.fileName({ extensionCount: 1 }),
       encoding: '7bit',
       mimetype: 'image/jpeg',
       size: 1024 * 1024, // 1MB
@@ -594,8 +596,8 @@ describe('PersonService', () => {
 
     it('should upload photo successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
-      const publicUrl = 'https://example.com/photos/person-123.jpg';
+      const personId = mockPersonId;
+      const publicUrl = faker.internet.url();
 
       // Mock findOne
       let callCount = 0;
@@ -633,7 +635,7 @@ describe('PersonService', () => {
       // Mock storage
       mockClient.storage.from.mockReturnValue({
         upload: jest.fn().mockResolvedValue({
-          data: { path: 'persons/person-123.jpg' },
+          data: { path: `persons/${faker.string.alphanumeric(10)}.jpg` },
           error: null,
         }),
         getPublicUrl: jest.fn().mockReturnValue({
@@ -717,10 +719,10 @@ describe('PersonService', () => {
   describe('deletePhoto', () => {
     it('should delete photo successfully', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
       const personWithPhoto = {
         ...mockPersonData,
-        photo_url: 'https://example.com/photos/person-123.jpg',
+        photo_url: faker.internet.url(),
       };
 
       let callCount = 0;
@@ -763,7 +765,7 @@ describe('PersonService', () => {
 
     it('should throw NotFoundException if photo does not exist', async () => {
       const mockClient = createMockSupabaseClient();
-      const personId = '123e4567-e89b-12d3-a456-426614174000';
+      const personId = mockPersonId;
 
       mockClient.from.mockReturnValue({
         select: jest.fn().mockReturnValue({
