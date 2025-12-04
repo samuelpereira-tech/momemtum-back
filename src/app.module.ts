@@ -7,6 +7,7 @@ import { AuthenticationModule } from './authentication/core/authentication.modul
 import { PersonModule } from './basic/person/person.module';
 import { ScheduledAbsenceModule } from './basic/scheduled-absence/scheduled-absence.module';
 import { ScheduleAreaModule } from './basic/schedule-area/schedule-area.module';
+import { ResponsibilityModule } from './basic/responsibilities/responsibility.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ScheduleAreaModule } from './basic/schedule-area/schedule-area.module';
     PersonModule,
     ScheduledAbsenceModule,
     ScheduleAreaModule,
+    ResponsibilityModule,
   ],
   controllers: [AppController],
   providers: [AppService],
