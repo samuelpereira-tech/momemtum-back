@@ -1,0 +1,749 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Person Area API",
+    "version": "1.0.0",
+    "description": "API for managing the association between persons and scheduled areas, including their assigned responsibilities (roles)"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/api/scheduled-areas/{scheduledAreaId}/persons": {
+      "post": {
+        "summary": "Add person to scheduled area",
+        "description": "Associates a person with a scheduled area and assigns one or more responsibilities to them.",
+        "operationId": "PersonAreaController_create",
+        "tags": ["person-areas"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scheduledAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Scheduled area unique identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePersonAreaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Person added to scheduled area successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonAreaResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data (person not found, responsibility not found, or responsibility doesn't belong to the area)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled area not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Person is already associated with this scheduled area",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List persons in scheduled area",
+        "description": "Retrieves a paginated list of all persons associated with a scheduled area, including their assigned responsibilities.",
+        "operationId": "PersonAreaController_findAll",
+        "tags": ["person-areas"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scheduledAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Scheduled area unique identifier"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "default": 1
+            },
+            "description": "Page number (starts at 1)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            },
+            "description": "Number of items per page"
+          },
+          {
+            "name": "personName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by person name (partial match, case-insensitive)"
+          },
+          {
+            "name": "personEmail",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by person email (partial match, case-insensitive)"
+          },
+          {
+            "name": "responsibilityId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Filter by responsibility ID (show only persons with this responsibility)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of persons in scheduled area retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPersonAreaResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled area not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduled-areas/{scheduledAreaId}/persons/{personAreaId}": {
+      "get": {
+        "summary": "Get person area association by ID",
+        "description": "Retrieves a specific person-area association by its ID.",
+        "operationId": "PersonAreaController_findOne",
+        "tags": ["person-areas"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scheduledAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Scheduled area unique identifier"
+          },
+          {
+            "name": "personAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Person area association unique identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Person area association retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonAreaResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Person area association or scheduled area not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update person responsibilities in area",
+        "description": "Updates the responsibilities assigned to a person in a scheduled area. Only the responsibilities list will be updated.",
+        "operationId": "PersonAreaController_update",
+        "tags": ["person-areas"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scheduledAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Scheduled area unique identifier"
+          },
+          {
+            "name": "personAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Person area association unique identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePersonAreaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Person responsibilities updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonAreaResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data (responsibility not found or doesn't belong to the area)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Person area association or scheduled area not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove person from scheduled area",
+        "description": "Removes a person from a scheduled area, including all their assigned responsibilities.",
+        "operationId": "PersonAreaController_remove",
+        "tags": ["person-areas"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scheduledAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Scheduled area unique identifier"
+          },
+          {
+            "name": "personAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Person area association unique identifier"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Person removed from scheduled area successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Person area association or scheduled area not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduled-areas/{scheduledAreaId}/persons/by-person/{personId}": {
+      "get": {
+        "summary": "Get person area by person ID",
+        "description": "Retrieves the person-area association for a specific person in a scheduled area. This is useful when you know the person ID but not the association ID.",
+        "operationId": "PersonAreaController_findByPersonId",
+        "tags": ["person-areas"],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scheduledAreaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Scheduled area unique identifier"
+          },
+          {
+            "name": "personId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Person unique identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Person area association retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonAreaResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Person not associated with this scheduled area, or scheduled area not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "CreatePersonAreaDto": {
+        "type": "object",
+        "required": ["personId", "responsibilityIds"],
+        "properties": {
+          "personId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the person to associate with the area",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "responsibilityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "description": "Array of responsibility IDs (must belong to the scheduled area, at least one required)",
+            "example": [
+              "456e7890-e89b-12d3-a456-426614174001",
+              "789e0123-e89b-12d3-a456-426614174002"
+            ]
+          }
+        }
+      },
+      "UpdatePersonAreaDto": {
+        "type": "object",
+        "required": ["responsibilityIds"],
+        "properties": {
+          "responsibilityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "description": "Array of responsibility IDs (must belong to the scheduled area, at least one required)",
+            "example": [
+              "456e7890-e89b-12d3-a456-426614174001",
+              "789e0123-e89b-12d3-a456-426614174002",
+              "012e3456-e89b-12d3-a456-426614174005"
+            ]
+          }
+        }
+      },
+      "PersonAreaResponseDto": {
+        "type": "object",
+        "required": ["id", "personId", "scheduledAreaId", "responsibilities", "createdAt", "updatedAt"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the person-area association",
+            "example": "abc12345-e89b-12d3-a456-426614174003"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the associated person",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "person": {
+            "$ref": "#/components/schemas/PersonInfoDto",
+            "description": "Person information (populated when requested)",
+            "nullable": true
+          },
+          "scheduledAreaId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the scheduled area",
+            "example": "def67890-e89b-12d3-a456-426614174004"
+          },
+          "scheduledArea": {
+            "$ref": "#/components/schemas/ScheduledAreaDto",
+            "description": "Scheduled area information (populated when requested)",
+            "nullable": true
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponsibilityInfoDto"
+            },
+            "description": "Array of responsibilities assigned to the person in this area"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp",
+            "example": "2024-01-15T10:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp",
+            "example": "2024-01-15T10:30:00.000Z"
+          }
+        }
+      },
+      "PersonInfoDto": {
+        "type": "object",
+        "required": ["id", "fullName", "email", "photoUrl"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "João Silva"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "joao.silva@example.com"
+          },
+          "photoUrl": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "URL to the person's photo",
+            "example": "https://example.com/photos/person-123e4567-e89b-12d3-a456-426614174000.jpg"
+          }
+        }
+      },
+      "ScheduledAreaDto": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "def67890-e89b-12d3-a456-426614174004"
+          },
+          "name": {
+            "type": "string",
+            "example": "Área de Produção"
+          }
+        }
+      },
+      "ResponsibilityInfoDto": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "456e7890-e89b-12d3-a456-426614174001"
+          },
+          "name": {
+            "type": "string",
+            "example": "Operador"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "example": "Responsável por operar equipamentos"
+          },
+          "imageUrl": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "URL to the responsibility image",
+            "example": "https://example.com/images/responsibility-456e7890-e89b-12d3-a456-426614174001.jpg"
+          }
+        }
+      },
+      "PaginatedPersonAreaResponseDto": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonAreaResponseDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        }
+      },
+      "PaginationMetaDto": {
+        "type": "object",
+        "required": ["page", "limit", "total", "totalPages"],
+        "properties": {
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "limit": {
+            "type": "number",
+            "example": 10
+          },
+          "total": {
+            "type": "number",
+            "example": 25
+          },
+          "totalPages": {
+            "type": "number",
+            "example": 3
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Error message description"
+          },
+          "statusCode": {
+            "type": "number",
+            "example": 400
+          },
+          "error": {
+            "type": "string",
+            "example": "Bad Request"
+          }
+        }
+      }
+    }
+  }
+}
+
