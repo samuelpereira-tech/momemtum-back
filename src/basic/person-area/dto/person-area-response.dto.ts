@@ -158,3 +158,6 @@ export class PaginatedPersonAreaResponseDto {
   meta: PaginationMetaDto;
 }
 
+
+
+

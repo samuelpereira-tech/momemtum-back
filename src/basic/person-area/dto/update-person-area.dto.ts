@@ -19,3 +19,6 @@ export class UpdatePersonAreaDto {
   responsibilityIds: string[];
 }
 
+
+
+

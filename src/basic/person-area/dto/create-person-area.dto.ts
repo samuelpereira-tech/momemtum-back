@@ -27,3 +27,6 @@ export class CreatePersonAreaDto {
   responsibilityIds: string[];
 }
 
+
+
+
