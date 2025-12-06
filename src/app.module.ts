@@ -10,6 +10,7 @@ import { ScheduleAreaModule } from './basic/schedule-area/schedule-area.module';
 import { ResponsibilityModule } from './basic/responsibilities/responsibility.module';
 import { PersonAreaModule } from './basic/person-area/person-area.module';
 import { GroupsModule } from './basic/groups/groups.module';
+import { TeamAreaModule } from './basic/team-area/team-area.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { GroupsModule } from './basic/groups/groups.module';
     ResponsibilityModule,
     PersonAreaModule,
     GroupsModule,
+    TeamAreaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

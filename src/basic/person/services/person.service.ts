@@ -12,7 +12,10 @@ import {
   PhotoUploadResponseDto,
   PaginatedPersonResponseDto,
 } from '../dto/person-response.dto';
-import { handleSupabaseError } from '../../../authentication/core/utils/error-handler.util';
+import {
+  handleSupabaseError,
+  handleSupabaseErrorWithDetails,
+} from '../../../authentication/core/utils/error-handler.util';
 import { MulterFile } from '../interfaces/file.interface';
 
 @Injectable()
@@ -242,7 +245,7 @@ export class PersonService {
       .eq('id', id);
 
     if (error) {
-      handleSupabaseError(error);
+      await handleSupabaseErrorWithDetails(error, supabaseClient, id, this.tableName);
     }
   }
 
