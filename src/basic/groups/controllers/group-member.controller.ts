@@ -19,28 +19,30 @@ import {
   ApiQuery,
   ApiParam,
 } from '@nestjs/swagger';
-import { PersonAreaService } from '../services/person-area.service';
-import { CreatePersonAreaDto } from '../dto/create-person-area.dto';
-import { UpdatePersonAreaDto } from '../dto/update-person-area.dto';
+import { GroupMemberService } from '../services/group-member.service';
+import { CreateGroupMemberDto } from '../dto/create-group-member.dto';
+import { UpdateGroupMemberDto } from '../dto/update-group-member.dto';
 import {
-  PersonAreaResponseDto,
-  PaginatedPersonAreaResponseDto,
-} from '../dto/person-area-response.dto';
+  GroupMemberResponseDto,
+  PaginatedGroupMemberResponseDto,
+} from '../dto/group-member-response.dto';
 import { AuthGuard } from '../../../authentication/core/guards/auth.guard';
 
-@ApiTags('person-areas')
-@Controller('api/scheduled-areas/:scheduledAreaId/persons')
+@ApiTags('group-members')
+@Controller('api/scheduled-areas/:scheduledAreaId/groups/:groupId/members')
 @UseGuards(AuthGuard)
 @ApiBearerAuth('JWT-auth')
-export class PersonAreaController {
-  constructor(private readonly personAreaService: PersonAreaService) {}
+export class GroupMemberController {
+  constructor(
+    private readonly groupMemberService: GroupMemberService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Add person to scheduled area',
+    summary: 'Add member to group',
     description:
-      'Associates a person with a scheduled area and assigns one or more responsibilities to them.',
+      'Adds a person to a group within a scheduled area. The person must already be associated with the scheduled area (via Person Area API).',
   })
   @ApiParam({
     name: 'scheduledAreaId',
@@ -48,15 +50,21 @@ export class PersonAreaController {
     type: String,
     format: 'uuid',
   })
+  @ApiParam({
+    name: 'groupId',
+    description: 'Group unique identifier',
+    type: String,
+    format: 'uuid',
+  })
   @ApiResponse({
     status: 201,
-    description: 'Person added to scheduled area successfully',
-    type: PersonAreaResponseDto,
+    description: 'Member added to group successfully',
+    type: GroupMemberResponseDto,
   })
   @ApiResponse({
     status: 400,
     description:
-      'Invalid input data (person not found, responsibility not found, or responsibility does not belong to the area)',
+      'Invalid input data (person not found, person not in scheduled area, responsibility not found, or responsibility does not belong to the area)',
   })
   @ApiResponse({
     status: 401,
@@ -64,11 +72,11 @@ export class PersonAreaController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Scheduled area not found',
+    description: 'Group or scheduled area not found',
   })
   @ApiResponse({
     status: 409,
-    description: 'Conflict - Person is already associated with this scheduled area',
+    description: 'Conflict - Person is already a member of this group',
   })
   @ApiResponse({
     status: 500,
@@ -76,20 +84,31 @@ export class PersonAreaController {
   })
   async create(
     @Param('scheduledAreaId') scheduledAreaId: string,
-    @Body() createPersonAreaDto: CreatePersonAreaDto,
-  ): Promise<PersonAreaResponseDto> {
-    return this.personAreaService.create(scheduledAreaId, createPersonAreaDto);
+    @Param('groupId') groupId: string,
+    @Body() createGroupMemberDto: CreateGroupMemberDto,
+  ): Promise<GroupMemberResponseDto> {
+    return this.groupMemberService.create(
+      scheduledAreaId,
+      groupId,
+      createGroupMemberDto,
+    );
   }
 
   @Get()
   @ApiOperation({
-    summary: 'List persons in scheduled area',
+    summary: 'List members in group',
     description:
-      'Retrieves a paginated list of all persons associated with a scheduled area, including their assigned responsibilities.',
+      'Retrieves a paginated list of all members in a group, including their responsibilities.',
   })
   @ApiParam({
     name: 'scheduledAreaId',
     description: 'Scheduled area unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'groupId',
+    description: 'Group unique identifier',
     type: String,
     format: 'uuid',
   })
@@ -123,14 +142,14 @@ export class PersonAreaController {
     name: 'responsibilityId',
     required: false,
     description:
-      'Filter by responsibility ID (show only persons with this responsibility)',
+      'Filter by responsibility ID (show only members with this responsibility)',
     type: String,
     format: 'uuid',
   })
   @ApiResponse({
     status: 200,
-    description: 'List of persons in scheduled area retrieved successfully',
-    type: PaginatedPersonAreaResponseDto,
+    description: 'List of group members retrieved successfully',
+    type: PaginatedGroupMemberResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -138,22 +157,24 @@ export class PersonAreaController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Scheduled area not found',
+    description: 'Group or scheduled area not found',
   })
   async findAll(
     @Param('scheduledAreaId') scheduledAreaId: string,
+    @Param('groupId') groupId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('personName') personName?: string,
     @Query('personEmail') personEmail?: string,
     @Query('responsibilityId') responsibilityId?: string,
-  ): Promise<PaginatedPersonAreaResponseDto> {
+  ): Promise<PaginatedGroupMemberResponseDto> {
     const pageNum = page ? Math.max(1, parseInt(page, 10)) : 1;
     const limitNum = limit
       ? Math.min(100, Math.max(1, parseInt(limit, 10)))
       : 10;
-    return this.personAreaService.findAll(
+    return this.groupMemberService.findAll(
       scheduledAreaId,
+      groupId,
       pageNum,
       limitNum,
       personName,
@@ -164,13 +185,19 @@ export class PersonAreaController {
 
   @Get('by-person/:personId')
   @ApiOperation({
-    summary: 'Get person area by person ID',
+    summary: 'Get group member by person ID',
     description:
-      'Retrieves the person-area association for a specific person in a scheduled area. This is useful when you know the person ID but not the association ID.',
+      'Retrieves the group member association for a specific person in a group. This is useful when you know the person ID but not the member ID.',
   })
   @ApiParam({
     name: 'scheduledAreaId',
     description: 'Scheduled area unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'groupId',
+    description: 'Group unique identifier',
     type: String,
     format: 'uuid',
   })
@@ -182,8 +209,8 @@ export class PersonAreaController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Person area association retrieved successfully',
-    type: PersonAreaResponseDto,
+    description: 'Group member retrieved successfully',
+    type: GroupMemberResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -192,19 +219,24 @@ export class PersonAreaController {
   @ApiResponse({
     status: 404,
     description:
-      'Person not associated with this scheduled area, or scheduled area not found',
+      'Person not a member of this group, or group/scheduled area not found',
   })
   async findByPersonId(
     @Param('scheduledAreaId') scheduledAreaId: string,
+    @Param('groupId') groupId: string,
     @Param('personId') personId: string,
-  ): Promise<PersonAreaResponseDto> {
-    return this.personAreaService.findByPersonId(scheduledAreaId, personId);
+  ): Promise<GroupMemberResponseDto> {
+    return this.groupMemberService.findByPersonId(
+      scheduledAreaId,
+      groupId,
+      personId,
+    );
   }
 
-  @Get(':personAreaId')
+  @Get(':memberId')
   @ApiOperation({
-    summary: 'Get person area association by ID',
-    description: 'Retrieves a specific person-area association by its ID.',
+    summary: 'Get group member by ID',
+    description: 'Retrieves a specific group member by their member ID.',
   })
   @ApiParam({
     name: 'scheduledAreaId',
@@ -213,15 +245,21 @@ export class PersonAreaController {
     format: 'uuid',
   })
   @ApiParam({
-    name: 'personAreaId',
-    description: 'Person area association unique identifier',
+    name: 'groupId',
+    description: 'Group unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'memberId',
+    description: 'Group member unique identifier',
     type: String,
     format: 'uuid',
   })
   @ApiResponse({
     status: 200,
-    description: 'Person area association retrieved successfully',
-    type: PersonAreaResponseDto,
+    description: 'Group member retrieved successfully',
+    type: GroupMemberResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -229,20 +267,25 @@ export class PersonAreaController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Person area association or scheduled area not found',
+    description: 'Group member, group, or scheduled area not found',
   })
   async findOne(
     @Param('scheduledAreaId') scheduledAreaId: string,
-    @Param('personAreaId') personAreaId: string,
-  ): Promise<PersonAreaResponseDto> {
-    return this.personAreaService.findOne(scheduledAreaId, personAreaId);
+    @Param('groupId') groupId: string,
+    @Param('memberId') memberId: string,
+  ): Promise<GroupMemberResponseDto> {
+    return this.groupMemberService.findOne(
+      scheduledAreaId,
+      groupId,
+      memberId,
+    );
   }
 
-  @Patch(':personAreaId')
+  @Patch(':memberId')
   @ApiOperation({
-    summary: 'Update person responsibilities in area',
+    summary: 'Update group member responsibilities',
     description:
-      'Updates the responsibilities assigned to a person in a scheduled area. Only the responsibilities list will be updated.',
+      'Updates the responsibilities assigned to a member within a group. The entire responsibilities list is replaced with the provided list.',
   })
   @ApiParam({
     name: 'scheduledAreaId',
@@ -251,15 +294,21 @@ export class PersonAreaController {
     format: 'uuid',
   })
   @ApiParam({
-    name: 'personAreaId',
-    description: 'Person area association unique identifier',
+    name: 'groupId',
+    description: 'Group unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'memberId',
+    description: 'Group member unique identifier',
     type: String,
     format: 'uuid',
   })
   @ApiResponse({
     status: 200,
-    description: 'Person responsibilities updated successfully',
-    type: PersonAreaResponseDto,
+    description: 'Group member responsibilities updated successfully',
+    type: GroupMemberResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -272,7 +321,7 @@ export class PersonAreaController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Person area association or scheduled area not found',
+    description: 'Group member, group, or scheduled area not found',
   })
   @ApiResponse({
     status: 500,
@@ -280,22 +329,24 @@ export class PersonAreaController {
   })
   async update(
     @Param('scheduledAreaId') scheduledAreaId: string,
-    @Param('personAreaId') personAreaId: string,
-    @Body() updatePersonAreaDto: UpdatePersonAreaDto,
-  ): Promise<PersonAreaResponseDto> {
-    return this.personAreaService.update(
+    @Param('groupId') groupId: string,
+    @Param('memberId') memberId: string,
+    @Body() updateGroupMemberDto: UpdateGroupMemberDto,
+  ): Promise<GroupMemberResponseDto> {
+    return this.groupMemberService.update(
       scheduledAreaId,
-      personAreaId,
-      updatePersonAreaDto,
+      groupId,
+      memberId,
+      updateGroupMemberDto,
     );
   }
 
-  @Delete(':personAreaId')
+  @Delete(':memberId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Remove person from scheduled area',
+    summary: 'Remove member from group',
     description:
-      'Removes a person from a scheduled area, including all their assigned responsibilities.',
+      'Removes a person from a group, including all their responsibility assignments within that group.',
   })
   @ApiParam({
     name: 'scheduledAreaId',
@@ -304,14 +355,20 @@ export class PersonAreaController {
     format: 'uuid',
   })
   @ApiParam({
-    name: 'personAreaId',
-    description: 'Person area association unique identifier',
+    name: 'groupId',
+    description: 'Group unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'memberId',
+    description: 'Group member unique identifier',
     type: String,
     format: 'uuid',
   })
   @ApiResponse({
     status: 204,
-    description: 'Person removed from scheduled area successfully',
+    description: 'Member removed from group successfully',
   })
   @ApiResponse({
     status: 401,
@@ -319,7 +376,7 @@ export class PersonAreaController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Person area association or scheduled area not found',
+    description: 'Group member, group, or scheduled area not found',
   })
   @ApiResponse({
     status: 500,
@@ -327,14 +384,16 @@ export class PersonAreaController {
   })
   async remove(
     @Param('scheduledAreaId') scheduledAreaId: string,
-    @Param('personAreaId') personAreaId: string,
+    @Param('groupId') groupId: string,
+    @Param('memberId') memberId: string,
   ): Promise<void> {
-    return this.personAreaService.remove(scheduledAreaId, personAreaId);
+    return this.groupMemberService.remove(
+      scheduledAreaId,
+      groupId,
+      memberId,
+    );
   }
 }
-
-
-
 
 
 

@@ -1,9 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID, IsNotEmpty, IsArray, ArrayMinSize } from 'class-validator';
 
-export class CreatePersonAreaDto {
+export class CreateGroupMemberDto {
   @ApiProperty({
-    description: 'ID of the person to associate with the area',
+    description:
+      'ID of the person to add to the group (must be associated with the scheduled area)',
     example: '123e4567-e89b-12d3-a456-426614174000',
     format: 'uuid',
   })
@@ -26,9 +27,6 @@ export class CreatePersonAreaDto {
   @IsNotEmpty()
   responsibilityIds: string[];
 }
-
-
-
 
 
 

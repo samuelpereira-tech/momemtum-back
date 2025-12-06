@@ -27,15 +27,15 @@ export class PersonInfoDto {
   photoUrl: string | null;
 }
 
-export class ScheduledAreaDto {
+export class GroupInfoDto {
   @ApiProperty({
     format: 'uuid',
-    example: 'def67890-e89b-12d3-a456-426614174004',
+    example: 'abc12345-e89b-12d3-a456-426614174003',
   })
   id: string;
 
   @ApiProperty({
-    example: 'Área de Produção',
+    example: 'Equipe de Plantão A',
   })
   name: string;
 }
@@ -48,12 +48,12 @@ export class ResponsibilityInfoDto {
   id: string;
 
   @ApiProperty({
-    example: 'Operador',
+    example: 'Líder',
   })
   name: string;
 
   @ApiProperty({
-    example: 'Responsável por operar equipamentos',
+    example: 'Lidera a equipe',
     nullable: true,
   })
   description: string | null;
@@ -67,11 +67,11 @@ export class ResponsibilityInfoDto {
   imageUrl: string | null;
 }
 
-export class PersonAreaResponseDto {
+export class GroupMemberResponseDto {
   @ApiProperty({
-    description: 'Unique identifier for the person-area association',
+    description: 'Unique identifier for the group member association',
     format: 'uuid',
-    example: 'abc12345-e89b-12d3-a456-426614174003',
+    example: 'xyz98765-e89b-12d3-a456-426614174005',
   })
   id: string;
 
@@ -90,21 +90,21 @@ export class PersonAreaResponseDto {
   person: PersonInfoDto | null;
 
   @ApiProperty({
-    description: 'ID of the scheduled area',
+    description: 'ID of the group',
     format: 'uuid',
-    example: 'def67890-e89b-12d3-a456-426614174004',
+    example: 'abc12345-e89b-12d3-a456-426614174003',
   })
-  scheduledAreaId: string;
+  groupId: string;
 
   @ApiProperty({
-    description: 'Scheduled area information (populated when requested)',
-    type: ScheduledAreaDto,
+    description: 'Group information (populated when requested)',
+    type: GroupInfoDto,
     nullable: true,
   })
-  scheduledArea: ScheduledAreaDto | null;
+  group: GroupInfoDto | null;
 
   @ApiProperty({
-    description: 'Array of responsibilities assigned to the person in this area',
+    description: 'Array of responsibilities assigned to the person in this group',
     type: [ResponsibilityInfoDto],
   })
   responsibilities: ResponsibilityInfoDto[];
@@ -146,20 +146,17 @@ export class PaginationMetaDto {
   totalPages: number;
 }
 
-export class PaginatedPersonAreaResponseDto {
+export class PaginatedGroupMemberResponseDto {
   @ApiProperty({
-    type: [PersonAreaResponseDto],
+    type: [GroupMemberResponseDto],
   })
-  data: PersonAreaResponseDto[];
+  data: GroupMemberResponseDto[];
 
   @ApiProperty({
     type: PaginationMetaDto,
   })
   meta: PaginationMetaDto;
 }
-
-
-
 
 
 

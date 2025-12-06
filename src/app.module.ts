@@ -9,6 +9,7 @@ import { ScheduledAbsenceModule } from './basic/scheduled-absence/scheduled-abse
 import { ScheduleAreaModule } from './basic/schedule-area/schedule-area.module';
 import { ResponsibilityModule } from './basic/responsibilities/responsibility.module';
 import { PersonAreaModule } from './basic/person-area/person-area.module';
+import { GroupsModule } from './basic/groups/groups.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PersonAreaModule } from './basic/person-area/person-area.module';
     ScheduleAreaModule,
     ResponsibilityModule,
     PersonAreaModule,
+    GroupsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
