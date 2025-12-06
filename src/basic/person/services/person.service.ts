@@ -115,11 +115,11 @@ export class PersonService {
       handleSupabaseError(countError);
     }
 
-    // Busca os registros paginados
+    // Busca os registros paginados ordenados por nome
     const { data, error } = await supabaseClient
       .from(this.tableName)
       .select('*')
-      .order('created_at', { ascending: false })
+      .order('full_name', { ascending: true })
       .range(offset, offset + limitNum - 1);
 
     if (error) {
