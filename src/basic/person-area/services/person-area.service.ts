@@ -62,27 +62,34 @@ export class PersonAreaService {
       );
     }
 
-    // Verifica se todas as responsabilidades existem e pertencem à área
-    const { data: responsibilities, error: respError } = await supabaseClient
-      .from('responsibilities')
-      .select('id')
-      .in('id', createPersonAreaDto.responsibilityIds)
-      .eq('scheduled_area_id', scheduledAreaId);
+    // Verifica se todas as responsabilidades existem e pertencem à área (se houver)
+    if (
+      createPersonAreaDto.responsibilityIds &&
+      createPersonAreaDto.responsibilityIds.length > 0
+    ) {
+      const { data: responsibilities, error: respError } = await supabaseClient
+        .from('responsibilities')
+        .select('id')
+        .in('id', createPersonAreaDto.responsibilityIds)
+        .eq('scheduled_area_id', scheduledAreaId);
 
-    if (respError) {
-      handleSupabaseError(respError);
-    }
+      if (respError) {
+        handleSupabaseError(respError);
+      }
 
-    if (!responsibilities || responsibilities.length === 0) {
-      throw new BadRequestException(
-        'No valid responsibilities found for this scheduled area',
-      );
-    }
+      if (!responsibilities || responsibilities.length === 0) {
+        throw new BadRequestException(
+          'No valid responsibilities found for this scheduled area',
+        );
+      }
 
-    if (responsibilities.length !== createPersonAreaDto.responsibilityIds.length) {
-      throw new BadRequestException(
-        'One or more responsibilities do not exist or do not belong to this scheduled area',
-      );
+      if (
+        responsibilities.length !== createPersonAreaDto.responsibilityIds.length
+      ) {
+        throw new BadRequestException(
+          'One or more responsibilities do not exist or do not belong to this scheduled area',
+        );
+      }
     }
 
     // Cria a associação pessoa-área
@@ -99,25 +106,30 @@ export class PersonAreaService {
       handleSupabaseError(insertError);
     }
 
-    // Cria as associações de responsabilidades
-    const responsibilityInserts = createPersonAreaDto.responsibilityIds.map(
-      (responsibilityId) => ({
-        person_area_id: personArea.id,
-        responsibility_id: responsibilityId,
-      }),
-    );
+    // Cria as associações de responsabilidades (se houver)
+    if (
+      createPersonAreaDto.responsibilityIds &&
+      createPersonAreaDto.responsibilityIds.length > 0
+    ) {
+      const responsibilityInserts = createPersonAreaDto.responsibilityIds.map(
+        (responsibilityId) => ({
+          person_area_id: personArea.id,
+          responsibility_id: responsibilityId,
+        }),
+      );
 
-    const { error: junctionError } = await supabaseClient
-      .from(this.junctionTableName)
-      .insert(responsibilityInserts);
+      const { error: junctionError } = await supabaseClient
+        .from(this.junctionTableName)
+        .insert(responsibilityInserts);
 
-    if (junctionError) {
-      // Remove a associação pessoa-área se falhar ao inserir responsabilidades
-      await supabaseClient
-        .from(this.tableName)
-        .delete()
-        .eq('id', personArea.id);
-      handleSupabaseError(junctionError);
+      if (junctionError) {
+        // Remove a associação pessoa-área se falhar ao inserir responsabilidades
+        await supabaseClient
+          .from(this.tableName)
+          .delete()
+          .eq('id', personArea.id);
+        handleSupabaseError(junctionError);
+      }
     }
 
     return this.findOne(scheduledAreaId, personArea.id);
@@ -414,27 +426,34 @@ export class PersonAreaService {
     // Verifica se a associação existe
     await this.findOne(scheduledAreaId, personAreaId);
 
-    // Verifica se todas as responsabilidades existem e pertencem à área
-    const { data: responsibilities, error: respError } = await supabaseClient
-      .from('responsibilities')
-      .select('id')
-      .in('id', updatePersonAreaDto.responsibilityIds)
-      .eq('scheduled_area_id', scheduledAreaId);
+    // Verifica se todas as responsabilidades existem e pertencem à área (se houver)
+    if (
+      updatePersonAreaDto.responsibilityIds &&
+      updatePersonAreaDto.responsibilityIds.length > 0
+    ) {
+      const { data: responsibilities, error: respError } = await supabaseClient
+        .from('responsibilities')
+        .select('id')
+        .in('id', updatePersonAreaDto.responsibilityIds)
+        .eq('scheduled_area_id', scheduledAreaId);
 
-    if (respError) {
-      handleSupabaseError(respError);
-    }
+      if (respError) {
+        handleSupabaseError(respError);
+      }
 
-    if (!responsibilities || responsibilities.length === 0) {
-      throw new BadRequestException(
-        'No valid responsibilities found for this scheduled area',
-      );
-    }
+      if (!responsibilities || responsibilities.length === 0) {
+        throw new BadRequestException(
+          'No valid responsibilities found for this scheduled area',
+        );
+      }
 
-    if (responsibilities.length !== updatePersonAreaDto.responsibilityIds.length) {
-      throw new BadRequestException(
-        'One or more responsibilities do not exist or do not belong to this scheduled area',
-      );
+      if (
+        responsibilities.length !== updatePersonAreaDto.responsibilityIds.length
+      ) {
+        throw new BadRequestException(
+          'One or more responsibilities do not exist or do not belong to this scheduled area',
+        );
+      }
     }
 
     // Remove todas as responsabilidades existentes
@@ -447,20 +466,25 @@ export class PersonAreaService {
       handleSupabaseError(deleteError);
     }
 
-    // Insere as novas responsabilidades
-    const responsibilityInserts = updatePersonAreaDto.responsibilityIds.map(
-      (responsibilityId) => ({
-        person_area_id: personAreaId,
-        responsibility_id: responsibilityId,
-      }),
-    );
+    // Insere as novas responsabilidades (se houver)
+    if (
+      updatePersonAreaDto.responsibilityIds &&
+      updatePersonAreaDto.responsibilityIds.length > 0
+    ) {
+      const responsibilityInserts = updatePersonAreaDto.responsibilityIds.map(
+        (responsibilityId) => ({
+          person_area_id: personAreaId,
+          responsibility_id: responsibilityId,
+        }),
+      );
 
-    const { error: insertError } = await supabaseClient
-      .from(this.junctionTableName)
-      .insert(responsibilityInserts);
+      const { error: insertError } = await supabaseClient
+        .from(this.junctionTableName)
+        .insert(responsibilityInserts);
 
-    if (insertError) {
-      handleSupabaseError(insertError);
+      if (insertError) {
+        handleSupabaseError(insertError);
+      }
     }
 
     // Atualiza o updated_at da associação pessoa-área

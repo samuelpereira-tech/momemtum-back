@@ -1,23 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID, IsNotEmpty, IsArray, ArrayMinSize } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsArray, IsOptional } from 'class-validator';
 
 export class UpdatePersonAreaDto {
   @ApiProperty({
     description:
-      'Array of responsibility IDs (must belong to the scheduled area, at least one required)',
+      'Array of responsibility IDs (must belong to the scheduled area, can be empty)',
     example: [
       '456e7890-e89b-12d3-a456-426614174001',
       '789e0123-e89b-12d3-a456-426614174002',
       '012e3456-e89b-12d3-a456-426614174005',
     ],
     type: [String],
+    required: false,
   })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @IsUUID(undefined, { each: true })
-  @IsNotEmpty()
-  responsibilityIds: string[];
+  responsibilityIds?: string[];
 }
+
 
 
 

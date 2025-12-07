@@ -517,3 +517,4 @@ CREATE TABLE automatic_schedule_generations (
 - Suporte a escalas híbridas (grupos + equipes)
 
 
+

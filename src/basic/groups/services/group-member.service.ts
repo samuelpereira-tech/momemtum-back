@@ -89,29 +89,34 @@ export class GroupMemberService {
       );
     }
 
-    // Verifica se todas as responsabilidades existem e pertencem à área
-    const { data: responsibilities, error: respError } = await supabaseClient
-      .from('responsibilities')
-      .select('id')
-      .in('id', createGroupMemberDto.responsibilityIds)
-      .eq('scheduled_area_id', scheduledAreaId);
-
-    if (respError) {
-      handleSupabaseError(respError);
-    }
-
-    if (!responsibilities || responsibilities.length === 0) {
-      throw new BadRequestException(
-        'No valid responsibilities found for this scheduled area',
-      );
-    }
-
+    // Verifica se todas as responsabilidades existem e pertencem à área (se houver)
     if (
-      responsibilities.length !== createGroupMemberDto.responsibilityIds.length
+      createGroupMemberDto.responsibilityIds &&
+      createGroupMemberDto.responsibilityIds.length > 0
     ) {
-      throw new BadRequestException(
-        'One or more responsibilities do not exist or do not belong to this scheduled area',
-      );
+      const { data: responsibilities, error: respError } = await supabaseClient
+        .from('responsibilities')
+        .select('id')
+        .in('id', createGroupMemberDto.responsibilityIds)
+        .eq('scheduled_area_id', scheduledAreaId);
+
+      if (respError) {
+        handleSupabaseError(respError);
+      }
+
+      if (!responsibilities || responsibilities.length === 0) {
+        throw new BadRequestException(
+          'No valid responsibilities found for this scheduled area',
+        );
+      }
+
+      if (
+        responsibilities.length !== createGroupMemberDto.responsibilityIds.length
+      ) {
+        throw new BadRequestException(
+          'One or more responsibilities do not exist or do not belong to this scheduled area',
+        );
+      }
     }
 
     // Cria a associação pessoa-grupo
@@ -128,25 +133,30 @@ export class GroupMemberService {
       handleSupabaseError(insertError);
     }
 
-    // Cria as associações de responsabilidades
-    const responsibilityInserts = createGroupMemberDto.responsibilityIds.map(
-      (responsibilityId) => ({
-        group_member_id: groupMember.id,
-        responsibility_id: responsibilityId,
-      }),
-    );
+    // Cria as associações de responsabilidades (se houver)
+    if (
+      createGroupMemberDto.responsibilityIds &&
+      createGroupMemberDto.responsibilityIds.length > 0
+    ) {
+      const responsibilityInserts = createGroupMemberDto.responsibilityIds.map(
+        (responsibilityId) => ({
+          group_member_id: groupMember.id,
+          responsibility_id: responsibilityId,
+        }),
+      );
 
-    const { error: junctionError } = await supabaseClient
-      .from(this.junctionTableName)
-      .insert(responsibilityInserts);
+      const { error: junctionError } = await supabaseClient
+        .from(this.junctionTableName)
+        .insert(responsibilityInserts);
 
-    if (junctionError) {
-      // Remove a associação pessoa-grupo se falhar ao inserir responsabilidades
-      await supabaseClient
-        .from(this.tableName)
-        .delete()
-        .eq('id', groupMember.id);
-      handleSupabaseError(junctionError);
+      if (junctionError) {
+        // Remove a associação pessoa-grupo se falhar ao inserir responsabilidades
+        await supabaseClient
+          .from(this.tableName)
+          .delete()
+          .eq('id', groupMember.id);
+        handleSupabaseError(junctionError);
+      }
     }
 
     return this.findOne(scheduledAreaId, groupId, groupMember.id);
@@ -479,29 +489,34 @@ export class GroupMemberService {
     // Verifica se o membro existe
     await this.findOne(scheduledAreaId, groupId, memberId);
 
-    // Verifica se todas as responsabilidades existem e pertencem à área
-    const { data: responsibilities, error: respError } = await supabaseClient
-      .from('responsibilities')
-      .select('id')
-      .in('id', updateGroupMemberDto.responsibilityIds)
-      .eq('scheduled_area_id', scheduledAreaId);
-
-    if (respError) {
-      handleSupabaseError(respError);
-    }
-
-    if (!responsibilities || responsibilities.length === 0) {
-      throw new BadRequestException(
-        'No valid responsibilities found for this scheduled area',
-      );
-    }
-
+    // Verifica se todas as responsabilidades existem e pertencem à área (se houver)
     if (
-      responsibilities.length !== updateGroupMemberDto.responsibilityIds.length
+      updateGroupMemberDto.responsibilityIds &&
+      updateGroupMemberDto.responsibilityIds.length > 0
     ) {
-      throw new BadRequestException(
-        'One or more responsibilities do not exist or do not belong to this scheduled area',
-      );
+      const { data: responsibilities, error: respError } = await supabaseClient
+        .from('responsibilities')
+        .select('id')
+        .in('id', updateGroupMemberDto.responsibilityIds)
+        .eq('scheduled_area_id', scheduledAreaId);
+
+      if (respError) {
+        handleSupabaseError(respError);
+      }
+
+      if (!responsibilities || responsibilities.length === 0) {
+        throw new BadRequestException(
+          'No valid responsibilities found for this scheduled area',
+        );
+      }
+
+      if (
+        responsibilities.length !== updateGroupMemberDto.responsibilityIds.length
+      ) {
+        throw new BadRequestException(
+          'One or more responsibilities do not exist or do not belong to this scheduled area',
+        );
+      }
     }
 
     // Remove todas as responsabilidades existentes
@@ -514,20 +529,25 @@ export class GroupMemberService {
       handleSupabaseError(deleteError);
     }
 
-    // Insere as novas responsabilidades
-    const responsibilityInserts = updateGroupMemberDto.responsibilityIds.map(
-      (responsibilityId) => ({
-        group_member_id: memberId,
-        responsibility_id: responsibilityId,
-      }),
-    );
+    // Insere as novas responsabilidades (se houver)
+    if (
+      updateGroupMemberDto.responsibilityIds &&
+      updateGroupMemberDto.responsibilityIds.length > 0
+    ) {
+      const responsibilityInserts = updateGroupMemberDto.responsibilityIds.map(
+        (responsibilityId) => ({
+          group_member_id: memberId,
+          responsibility_id: responsibilityId,
+        }),
+      );
 
-    const { error: insertError } = await supabaseClient
-      .from(this.junctionTableName)
-      .insert(responsibilityInserts);
+      const { error: insertError } = await supabaseClient
+        .from(this.junctionTableName)
+        .insert(responsibilityInserts);
 
-    if (insertError) {
-      handleSupabaseError(insertError);
+      if (insertError) {
+        handleSupabaseError(insertError);
+      }
     }
 
     // Atualiza o updated_at do membro
