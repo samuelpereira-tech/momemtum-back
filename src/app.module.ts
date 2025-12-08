@@ -11,6 +11,7 @@ import { ResponsibilityModule } from './basic/responsibilities/responsibility.mo
 import { PersonAreaModule } from './basic/person-area/person-area.module';
 import { GroupsModule } from './basic/groups/groups.module';
 import { TeamAreaModule } from './basic/team-area/team-area.module';
+import { AutomaticScheduleModule } from './basic/automatic-schedule/automatic-schedule.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { TeamAreaModule } from './basic/team-area/team-area.module';
     PersonAreaModule,
     GroupsModule,
     TeamAreaModule,
+    AutomaticScheduleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -15,4 +15,5 @@ export * from './responsibility.mock';
 export * from './scheduled-area.mock';
 export * from './scheduled-absence.mock';
 export * from './absence-type.mock';
+export * from './automatic-schedule.mock';
 
