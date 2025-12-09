@@ -80,6 +80,7 @@ CREATE TABLE schedule_members (
   person_id UUID NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
   responsibility_id UUID NOT NULL REFERENCES responsibilities(id) ON DELETE RESTRICT,
   status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+  present BOOLEAN DEFAULT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(schedule_id, person_id)
@@ -93,6 +94,30 @@ CREATE TABLE schedule_comments (
   author_id UUID NOT NULL REFERENCES persons(id) ON DELETE RESTRICT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Criar tabela de logs de mudanças em schedule_members
+CREATE TABLE schedule_members_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  schedule_id UUID NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+  schedule_member_id UUID REFERENCES schedule_members(id) ON DELETE SET NULL,
+  person_id UUID REFERENCES persons(id) ON DELETE SET NULL,
+  change_type VARCHAR(50) NOT NULL CHECK (change_type IN (
+    'member_added',
+    'member_removed',
+    'member_status_changed',
+    'member_present_changed',
+    'schedule_start_date_changed',
+    'schedule_end_date_changed',
+    'schedule_status_changed',
+    'team_changed',
+    'team_member_added',
+    'team_member_removed'
+  )),
+  old_value JSONB,
+  new_value JSONB,
+  changed_by UUID REFERENCES persons(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Criar índices para melhor performance
@@ -126,6 +151,12 @@ CREATE INDEX IF NOT EXISTS idx_schedule_members_status ON schedule_members(statu
 CREATE INDEX IF NOT EXISTS idx_schedule_comments_schedule_id ON schedule_comments(schedule_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_comments_author_id ON schedule_comments(author_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_comments_created_at ON schedule_comments(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_schedule_id ON schedule_members_logs(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_schedule_member_id ON schedule_members_logs(schedule_member_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_person_id ON schedule_members_logs(person_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_change_type ON schedule_members_logs(change_type);
+CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_created_at ON schedule_members_logs(created_at DESC);
 
 -- Criar função para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION update_schedules_updated_at()
@@ -189,7 +220,13 @@ COMMENT ON COLUMN schedules.status IS 'Status da escala: pending, confirmed, can
 
 COMMENT ON TABLE schedule_members IS 'Tabela para armazenar membros de escalas';
 COMMENT ON COLUMN schedule_members.status IS 'Status do membro: pending, accepted, rejected';
+COMMENT ON COLUMN schedule_members.present IS 'Indica se a pessoa esteve presente (true) ou não (false), ou NULL se ainda não foi marcado';
 
 COMMENT ON TABLE schedule_comments IS 'Tabela para armazenar comentários em escalas';
 COMMENT ON COLUMN schedule_comments.content IS 'Conteúdo do comentário (1-5000 caracteres)';
+
+COMMENT ON TABLE schedule_members_logs IS 'Tabela para armazenar logs de mudanças em schedule_members e schedules relacionadas';
+COMMENT ON COLUMN schedule_members_logs.change_type IS 'Tipo de mudança: member_added, member_removed, member_status_changed, member_present_changed, schedule_start_date_changed, schedule_end_date_changed, schedule_status_changed, team_changed, team_member_added, team_member_removed';
+COMMENT ON COLUMN schedule_members_logs.old_value IS 'Valor anterior em formato JSON';
+COMMENT ON COLUMN schedule_members_logs.new_value IS 'Novo valor em formato JSON';
 

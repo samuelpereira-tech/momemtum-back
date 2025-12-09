@@ -104,8 +104,7 @@ export class ScheduleGenerationService {
       handleSupabaseError(genError);
     }
 
-    // Criar as escalas (será feito pelo ScheduleService através de injeção no módulo)
-    // Por enquanto, vamos criar diretamente aqui para evitar dependência circular
+    // Criar as escalas reaproveitando os dados do preview
     const createdSchedules = await this.createSchedulesFromGeneration(
       generation.id,
       scheduledAreaId,
@@ -119,10 +118,16 @@ export class ScheduleGenerationService {
       .update({ total_schedules_generated: createdSchedules.length })
       .eq('id', generation.id);
 
-    // Buscar todas as escalas criadas com detalhes completos (incluindo membros dos grupos)
-    const schedulesWithDetails = await this.getSchedulesWithDetails(
-      generation.id,
-      scheduledAreaId,
+    // Reaproveitar os dados do preview para construir a resposta final
+    // Isso evita buscar novamente do banco os dados que já temos processados
+    // Buscar apenas os IDs dos assignments criados para completar os dados
+    const scheduleIds = createdSchedules.map((s) => s.id);
+    const assignmentsMap = await this.getAssignmentsMap(scheduleIds);
+
+    const schedulesWithDetails = this.mapPreviewToScheduleDetails(
+      preview.schedules,
+      createdSchedules,
+      assignmentsMap,
     );
 
     const response = this.mapToResponseDto(generation);
@@ -133,7 +138,8 @@ export class ScheduleGenerationService {
   }
 
   /**
-   * Busca todas as escalas de uma geração com detalhes completos
+   * Busca todas as escalas de uma geração com detalhes completos (OTIMIZADO)
+   * Usa uma única query com relacionamentos aninhados
    */
   private async getSchedulesWithDetails(
     generationId: string,
@@ -141,10 +147,46 @@ export class ScheduleGenerationService {
   ): Promise<any[]> {
     const supabaseClient = this.supabaseService.getRawClient();
 
-    // Buscar todas as escalas da geração
+    // Buscar todas as escalas com todos os relacionamentos em uma única query
     const { data: schedules, error } = await supabaseClient
       .from('schedules')
-      .select('id')
+      .select(
+        `
+        *,
+        groups:schedule_groups(
+          group_id,
+          area_groups(
+            id,
+            name,
+            members:area_group_members(
+              id,
+              person:persons(id, full_name, email, photo_url),
+              responsibilities:area_group_member_responsibilities(
+                responsibility:responsibilities(id, name, description, image_url)
+              )
+            )
+          )
+        ),
+        team:schedule_teams(
+          team_id,
+          area_teams(id, name)
+        ),
+        assignments:schedule_team_assignments(
+          id,
+          person_id,
+          team_role_id,
+          persons(id, full_name, email, photo_url),
+          area_team_roles(
+            id,
+            responsibility_id,
+            quantity,
+            priority,
+            is_free,
+            responsibilities(id, name, image_url)
+          )
+        )
+      `,
+      )
       .eq('schedule_generation_id', generationId)
       .eq('scheduled_area_id', scheduledAreaId)
       .order('start_datetime', { ascending: true });
@@ -153,83 +195,27 @@ export class ScheduleGenerationService {
       return [];
     }
 
-    // Para cada escala, buscar os detalhes completos
-    const schedulesWithDetails: any[] = [];
-    for (const schedule of schedules) {
-      const details = await this.getScheduleDetailsForGeneration(schedule.id);
-      if (details) {
-        schedulesWithDetails.push(details);
-      }
-    }
-
-    return schedulesWithDetails;
+    // Processar os dados
+    return schedules.map((schedule: any) => this.processScheduleData(schedule));
   }
 
   /**
-   * Busca detalhes completos de uma escala (incluindo membros dos grupos)
+   * Processa os dados de uma escala retornados pela query otimizada
    */
-  private async getScheduleDetailsForGeneration(
-    scheduleId: string,
-  ): Promise<any> {
-    const supabaseClient = this.supabaseService.getRawClient();
-
-    // Buscar dados básicos da escala
-    const { data: schedule, error: scheduleError } = await supabaseClient
-      .from('schedules')
-      .select('*')
-      .eq('id', scheduleId)
-      .single();
-
-    if (scheduleError || !schedule) {
-      return null;
-    }
-
-    // Buscar grupos com membros
-    const { data: groups } = await supabaseClient
-      .from('schedule_groups')
-      .select(
-        `
-        group_id,
-        area_groups(
-          id,
-          name,
-          members:area_group_members(
-            id,
-            person:persons(id, full_name, email, photo_url),
-            responsibilities:area_group_member_responsibilities(
-              responsibility:responsibilities(id, name, description, image_url)
-            )
-          )
-        )
-      `,
-      )
-      .eq('schedule_id', scheduleId);
-
-    // Buscar equipe
-    const { data: teamData } = await supabaseClient
-      .from('schedule_teams')
-      .select('team_id, area_teams(id, name)')
-      .eq('schedule_id', scheduleId)
-      .single();
-
-    // Buscar atribuições de equipe
-    const { data: assignments } = await supabaseClient
-      .from('schedule_team_assignments')
-      .select(
-        'id, person_id, team_role_id, persons(id, full_name, email, photo_url), area_team_roles(id, responsibility_id, quantity, priority, is_free, responsibilities(id, name, image_url))',
-      )
-      .eq('schedule_id', scheduleId);
-
+  private processScheduleData(schedule: any): any {
     // Processar grupos com membros
-    const processedGroups = (groups || []).map((g: any) => {
+    const processedGroups = ((schedule.groups || []) as any[]).map((g: any) => {
       const groupData: any = {
-        id: g.area_groups.id,
-        name: g.area_groups.name,
+        id: g.area_groups?.id || '',
+        name: g.area_groups?.name || '',
         members: [],
       };
 
       // Processar membros do grupo
-      if (g.area_groups.members && Array.isArray(g.area_groups.members)) {
+      if (
+        g.area_groups?.members &&
+        Array.isArray(g.area_groups.members)
+      ) {
         groupData.members = g.area_groups.members.map((member: any) => {
           const memberData: any = {
             personId: member.person?.id || '',
@@ -259,23 +245,22 @@ export class ScheduleGenerationService {
       return groupData;
     });
 
-    return {
-      id: schedule.id,
-      scheduleGenerationId: schedule.schedule_generation_id,
-      scheduledAreaId: schedule.scheduled_area_id,
-      startDatetime: schedule.start_datetime,
-      endDatetime: schedule.end_datetime,
-      scheduleType: schedule.schedule_type,
-      status: schedule.status,
-      groups: processedGroups,
-      team:
-        teamData && (teamData as any).area_teams
-          ? {
-              id: (teamData as any).area_teams.id,
-              name: (teamData as any).area_teams.name,
-            }
-          : null,
-      assignments: (assignments || []).map((a: any) => ({
+    // Processar equipe
+    const teamData =
+      schedule.team && Array.isArray(schedule.team) && schedule.team.length > 0
+        ? schedule.team[0]
+        : schedule.team;
+    const processedTeam =
+      teamData?.area_teams
+        ? {
+            id: teamData.area_teams.id,
+            name: teamData.area_teams.name,
+          }
+        : null;
+
+    // Processar atribuições
+    const processedAssignments = ((schedule.assignments || []) as any[]).map(
+      (a: any) => ({
         id: a.id,
         personId: a.person_id,
         person: a.persons
@@ -300,10 +285,188 @@ export class ScheduleGenerationService {
                 : null,
             }
           : null,
-      })),
+      }),
+    );
+
+    return {
+      id: schedule.id,
+      scheduleGenerationId: schedule.schedule_generation_id,
+      scheduledAreaId: schedule.scheduled_area_id,
+      startDatetime: schedule.start_datetime,
+      endDatetime: schedule.end_datetime,
+      scheduleType: schedule.schedule_type,
+      status: schedule.status,
+      groups: processedGroups,
+      team: processedTeam,
+      assignments: processedAssignments,
       createdAt: schedule.created_at,
       updatedAt: schedule.updated_at,
     };
+  }
+
+  /**
+   * Busca os assignments criados para completar os dados
+   */
+  private async getAssignmentsMap(
+    scheduleIds: string[],
+  ): Promise<Map<string, any[]>> {
+    if (scheduleIds.length === 0) {
+      return new Map();
+    }
+
+    const supabaseClient = this.supabaseService.getRawClient();
+    const { data: assignments } = await supabaseClient
+      .from('schedule_team_assignments')
+      .select(
+        'id, schedule_id, person_id, team_role_id, persons(id, full_name, email, photo_url), area_team_roles(id, responsibility_id, responsibilities(id, name, image_url))',
+      )
+      .in('schedule_id', scheduleIds);
+
+    if (!assignments) {
+      return new Map();
+    }
+
+    // Agrupar por schedule_id
+    const assignmentsMap = new Map<string, any[]>();
+    assignments.forEach((a: any) => {
+      const scheduleId = a.schedule_id;
+      if (!assignmentsMap.has(scheduleId)) {
+        assignmentsMap.set(scheduleId, []);
+      }
+      assignmentsMap.get(scheduleId)!.push(a);
+    });
+
+    return assignmentsMap;
+  }
+
+  /**
+   * Mapeia os dados do preview para o formato de detalhes de schedule
+   * Reaproveita os dados já processados do preview, evitando nova busca no banco
+   */
+  private mapPreviewToScheduleDetails(
+    previewSchedules: SchedulePreviewDto[],
+    createdSchedules: any[],
+    assignmentsMap: Map<string, any[]>,
+  ): any[] {
+    // Normalizar datas para comparação
+    const normalizeDateTime = (dt: string) => {
+      const date = new Date(dt);
+      return date.toISOString();
+    };
+
+    // Criar mapa de schedules criadas por start_datetime
+    const scheduleMap = new Map<string, any>();
+    createdSchedules.forEach((s) => {
+      const normalizedKey = normalizeDateTime(s.start_datetime);
+      scheduleMap.set(normalizedKey, s);
+    });
+
+    // Mapear preview para formato de detalhes
+    return previewSchedules
+      .map((preview) => {
+        const normalizedKey = normalizeDateTime(preview.startDatetime);
+        const createdSchedule = scheduleMap.get(normalizedKey);
+
+        if (!createdSchedule) {
+          return null;
+        }
+
+        // Converter grupos do preview para o formato de detalhes
+        const groups = (preview.groups || []).map((g) => ({
+          id: g.id,
+          name: g.name,
+          members: (g.members || []).map((m) => ({
+            personId: m.personId,
+            personName: m.personName,
+            personPhotoUrl: m.personPhotoUrl,
+            responsibilities: (m.responsibilities || []).map((r) => ({
+              id: r.id,
+              name: r.name,
+              imageUrl: r.imageUrl,
+            })),
+          })),
+        }));
+
+        // Converter team do preview
+        const team = preview.team
+          ? {
+              id: preview.team.id,
+              name: preview.team.name,
+            }
+          : null;
+
+        // Converter assignments - usar dados do banco se disponível, senão usar preview
+        const createdAssignments = assignmentsMap.get(createdSchedule.id) || [];
+        const assignments = createdAssignments.length > 0
+          ? createdAssignments.map((a: any) => ({
+              id: a.id,
+              personId: a.person_id,
+              person: a.persons
+                ? {
+                    id: a.persons.id,
+                    fullName: a.persons.full_name,
+                    email: a.persons.email,
+                    photoUrl: a.persons.photo_url,
+                  }
+                : null,
+              teamRoleId: a.team_role_id,
+              teamRole: a.area_team_roles
+                ? {
+                    id: a.area_team_roles.id,
+                    responsibilityId: a.area_team_roles.responsibility_id,
+                    responsibility: a.area_team_roles.responsibilities
+                      ? {
+                          id: a.area_team_roles.responsibilities.id,
+                          name: a.area_team_roles.responsibilities.name,
+                          imageUrl: a.area_team_roles.responsibilities.image_url,
+                        }
+                      : null,
+                  }
+                : null,
+            }))
+          : (preview.assignments || []).map((a) => ({
+              id: '',
+              personId: a.personId,
+              person: a.personId
+                ? {
+                    id: a.personId,
+                    fullName: a.personName,
+                    email: '',
+                    photoUrl: null,
+                  }
+                : null,
+              teamRoleId: a.roleId,
+              teamRole: a.roleId
+                ? {
+                    id: a.roleId,
+                    responsibilityId: '',
+                    responsibility: a.roleName
+                      ? {
+                          id: '',
+                          name: a.roleName,
+                          imageUrl: null,
+                        }
+                      : null,
+                  }
+                : null,
+            }));
+
+        return {
+          id: createdSchedule.id,
+          scheduleGenerationId: createdSchedule.schedule_generation_id,
+          scheduledAreaId: createdSchedule.scheduled_area_id,
+          startDatetime: preview.startDatetime,
+          endDatetime: preview.endDatetime,
+          scheduleType: createdSchedule.schedule_type,
+          status: createdSchedule.status || 'pending',
+          groups,
+          team,
+          assignments,
+          createdAt: createdSchedule.created_at,
+          updatedAt: createdSchedule.updated_at || createdSchedule.created_at,
+        };
+      })
+      .filter((s) => s !== null);
   }
 
   async findAll(
@@ -332,8 +495,14 @@ export class ScheduleGenerationService {
     const total = count || 0;
     const totalPages = Math.ceil(total / limitNum);
 
+    // Enriquecer configurações com nomes dos grupos (otimizado - busca todos os grupos de uma vez)
+    const enrichedData = await this.enrichConfigurationsWithGroupNames(
+      data,
+      scheduledAreaId,
+    );
+
     return {
-      data: data.map((item: any) => this.mapToResponseDto(item)),
+      data: enrichedData.map((item: any) => this.mapToResponseDto(item)),
       meta: {
         page: pageNum,
         limit: limitNum,
@@ -369,7 +538,10 @@ export class ScheduleGenerationService {
       throw new NotFoundException('Schedule generation not found');
     }
 
-    return this.mapToResponseDto(data);
+    // Enriquecer configuração com nomes dos grupos
+    const enrichedData = await this.enrichConfigurationWithGroupNames(data);
+
+    return this.mapToResponseDto(enrichedData);
   }
 
   async remove(scheduledAreaId: string, generationId: string): Promise<void> {
@@ -803,6 +975,9 @@ export class ScheduleGenerationService {
     };
   }
 
+  /**
+   * Cria todas as escalas de uma geração de forma otimizada (batch inserts)
+   */
   private async createSchedulesFromGeneration(
     generationId: string,
     scheduledAreaId: string,
@@ -810,98 +985,246 @@ export class ScheduleGenerationService {
     config: GenerationConfigurationDto,
   ): Promise<any[]> {
     const supabaseClient = this.supabaseService.getRawClient();
-    const createdSchedules: any[] = [];
+    const scheduleType = this.determineScheduleType(config);
 
+    // 1. Batch insert de todas as schedules de uma vez
+    const schedulesToInsert = previewSchedules.map((preview) => ({
+      schedule_generation_id: generationId,
+      scheduled_area_id: scheduledAreaId,
+      start_datetime: preview.startDatetime,
+      end_datetime: preview.endDatetime,
+      schedule_type: scheduleType,
+      status: 'pending',
+    }));
+
+    const { data: createdSchedules, error: schedulesError } = await supabaseClient
+      .from('schedules')
+      .insert(schedulesToInsert)
+      .select('id, start_datetime');
+
+    if (schedulesError) {
+      console.error('Error creating schedules:', schedulesError);
+      handleSupabaseError(schedulesError);
+    }
+
+    if (!createdSchedules || createdSchedules.length === 0) {
+      return [];
+    }
+
+    // Verificar se todas as schedules foram criadas
+    if (createdSchedules.length !== previewSchedules.length) {
+      throw new BadRequestException(
+        `Expected ${previewSchedules.length} schedules but only ${createdSchedules.length} were created`,
+      );
+    }
+
+    // Ordenar schedules criadas pela mesma ordem do preview (por start_datetime)
+    // Normalizar datas para comparação (remover milissegundos se necessário)
+    const normalizeDateTime = (dt: string) => {
+      const date = new Date(dt);
+      return date.toISOString();
+    };
+
+    const scheduleMap = new Map<string, any>();
+    createdSchedules.forEach((s) => {
+      const normalizedKey = normalizeDateTime(s.start_datetime);
+      scheduleMap.set(normalizedKey, s);
+    });
+
+    // Manter a ordem do preview e validar que todas as schedules foram encontradas
+    const sortedSchedules: any[] = [];
     for (const preview of previewSchedules) {
-      // Criar schedule
-      const { data: schedule, error: scheduleError } = await supabaseClient
-        .from('schedules')
-        .insert({
-          schedule_generation_id: generationId,
-          scheduled_area_id: scheduledAreaId,
-          start_datetime: preview.startDatetime,
-          end_datetime: preview.endDatetime,
-          schedule_type: this.determineScheduleType(config),
-          status: 'pending',
-        })
-        .select()
-        .single();
+      const normalizedKey = normalizeDateTime(preview.startDatetime);
+      const schedule = scheduleMap.get(normalizedKey);
+      if (!schedule) {
+        throw new BadRequestException(
+          `Could not find created schedule for preview with startDatetime: ${preview.startDatetime}`,
+        );
+      }
+      sortedSchedules.push(schedule);
+    }
 
-      if (scheduleError) {
-        // Log do erro para debug
-        console.error('Error creating schedule:', scheduleError);
-        handleSupabaseError(scheduleError);
+    // 2. Preparar todos os relacionamentos para batch insert
+    const scheduleGroupsToInsert: Array<{
+      schedule_id: string;
+      group_id: string;
+    }> = [];
+    const scheduleTeamsToInsert: Array<{
+      schedule_id: string;
+      team_id: string;
+    }> = [];
+    const scheduleAssignmentsToInsert: Array<{
+      schedule_id: string;
+      person_id: string;
+      team_role_id: string;
+    }> = [];
+    const scheduleMembersToInsert: Array<{
+      schedule_id: string;
+      person_id: string;
+      responsibility_id: string;
+    }> = [];
+
+    // Validar grupos uma única vez se necessário
+    const allGroupIds = new Set<string>();
+    previewSchedules.forEach((preview) => {
+      if (preview.groups) {
+        preview.groups.forEach((g) => allGroupIds.add(g.id));
+      }
+    });
+
+    if (allGroupIds.size > 0) {
+      const { data: existingGroups, error: checkError } = await supabaseClient
+        .from('area_groups')
+        .select('id')
+        .in('id', Array.from(allGroupIds))
+        .eq('scheduled_area_id', scheduledAreaId);
+
+      if (checkError || !existingGroups) {
+        throw new BadRequestException(
+          'Error validating groups: ' + (checkError?.message || 'Unknown error'),
+        );
       }
 
-      // Criar relacionamentos baseado no tipo
+      const existingGroupIds = new Set(
+        existingGroups.map((g: any) => g.id),
+      );
+      const missingGroups = Array.from(allGroupIds).filter(
+        (id) => !existingGroupIds.has(id),
+      );
+
+      if (missingGroups.length > 0) {
+        throw new BadRequestException(
+          `One or more groups do not exist or do not belong to this scheduled area: ${missingGroups.join(', ')}`,
+        );
+      }
+    }
+
+    // Preparar relacionamentos
+    for (let i = 0; i < previewSchedules.length; i++) {
+      const preview = previewSchedules[i];
+      const schedule = sortedSchedules[i];
+
+      // Validação de segurança
+      if (!schedule || !schedule.id) {
+        throw new BadRequestException(
+          `Invalid schedule at index ${i}: schedule is undefined or missing id`,
+        );
+      }
+
       if (preview.groups && preview.groups.length > 0) {
-        // Validar que todos os grupos ainda existem antes de inserir
-        const groupIds = preview.groups.map((g) => g.id);
-        const { data: existingGroups, error: checkError } = await supabaseClient
-          .from('area_groups')
-          .select('id')
-          .in('id', groupIds)
-          .eq('scheduled_area_id', scheduledAreaId);
+        preview.groups.forEach((g) => {
+          if (!g || !g.id) {
+            throw new BadRequestException(
+              `Invalid group in preview at index ${i}: group is undefined or missing id`,
+            );
+          }
+          scheduleGroupsToInsert.push({
+            schedule_id: schedule.id,
+            group_id: g.id,
+          });
 
-        if (checkError || !existingGroups || existingGroups.length !== groupIds.length) {
-          throw new BadRequestException(
-            'One or more groups do not exist or do not belong to this scheduled area',
-          );
-        }
+          // Criar schedule_members para cada membro do grupo
+          // Nota: A constraint UNIQUE(schedule_id, person_id) permite apenas um membro por pessoa por schedule
+          // Usaremos a primeira responsabilidade do membro
+          if (g.members && Array.isArray(g.members)) {
+            g.members.forEach((member) => {
+              if (member.personId && member.responsibilities && member.responsibilities.length > 0) {
+                // Verificar se a pessoa já foi adicionada para esta schedule (evitar duplicatas)
+                const alreadyAdded = scheduleMembersToInsert.some(
+                  (sm) =>
+                    sm.schedule_id === schedule.id &&
+                    sm.person_id === member.personId,
+                );
 
-        const { error: groupsError } = await supabaseClient
-          .from('schedule_groups')
-          .insert(
-            preview.groups.map((g) => ({
-              schedule_id: schedule.id,
-              group_id: g.id,
-            })),
-          );
-
-        if (groupsError) {
-          // Log do erro para debug
-          console.error('Error creating schedule_groups:', groupsError);
-          console.error('Schedule ID:', schedule.id);
-          console.error('Group IDs:', preview.groups.map((g) => g.id));
-          handleSupabaseError(groupsError);
-        }
+                if (!alreadyAdded) {
+                  // Usar a primeira responsabilidade do membro
+                  const firstResponsibility = member.responsibilities[0];
+                  if (firstResponsibility && firstResponsibility.id) {
+                    scheduleMembersToInsert.push({
+                      schedule_id: schedule.id,
+                      person_id: member.personId,
+                      responsibility_id: firstResponsibility.id,
+                    });
+                  }
+                }
+              }
+            });
+          }
+        });
       }
 
       if (preview.team) {
-        const { error: teamError } = await supabaseClient
-          .from('schedule_teams')
-          .insert({
-            schedule_id: schedule.id,
-            team_id: preview.team.id,
-          });
-
-        if (teamError) {
-          handleSupabaseError(teamError);
+        if (!preview.team.id) {
+          throw new BadRequestException(
+            `Invalid team in preview at index ${i}: team is missing id`,
+          );
         }
+        scheduleTeamsToInsert.push({
+          schedule_id: schedule.id,
+          team_id: preview.team.id,
+        });
       }
 
       if (preview.assignments && preview.assignments.length > 0) {
-        const { error: assignmentsError } = await supabaseClient
-          .from('schedule_team_assignments')
-          .insert(
-            preview.assignments
-              .filter((a) => a.personId)
-              .map((a) => ({
-                schedule_id: schedule.id,
-                person_id: a.personId,
-                team_role_id: a.roleId,
-              })),
-          );
-
-        if (assignmentsError) {
-          handleSupabaseError(assignmentsError);
-        }
+        preview.assignments
+          .filter((a) => a && a.personId && a.roleId)
+          .forEach((a) => {
+            scheduleAssignmentsToInsert.push({
+              schedule_id: schedule.id,
+              person_id: a.personId,
+              team_role_id: a.roleId,
+            });
+          });
       }
-
-      createdSchedules.push(schedule);
     }
 
-    return createdSchedules;
+    // 3. Batch insert de todos os relacionamentos
+    if (scheduleGroupsToInsert.length > 0) {
+      const { error: groupsError } = await supabaseClient
+        .from('schedule_groups')
+        .insert(scheduleGroupsToInsert);
+
+      if (groupsError) {
+        console.error('Error creating schedule_groups:', groupsError);
+        handleSupabaseError(groupsError);
+      }
+    }
+
+    if (scheduleTeamsToInsert.length > 0) {
+      const { error: teamError } = await supabaseClient
+        .from('schedule_teams')
+        .insert(scheduleTeamsToInsert);
+
+      if (teamError) {
+        console.error('Error creating schedule_teams:', teamError);
+        handleSupabaseError(teamError);
+      }
+    }
+
+    if (scheduleAssignmentsToInsert.length > 0) {
+      const { error: assignmentsError } = await supabaseClient
+        .from('schedule_team_assignments')
+        .insert(scheduleAssignmentsToInsert);
+
+      if (assignmentsError) {
+        console.error('Error creating schedule_team_assignments:', assignmentsError);
+        handleSupabaseError(assignmentsError);
+      }
+    }
+
+    // 4. Batch insert de schedule_members (membros dos grupos)
+    if (scheduleMembersToInsert.length > 0) {
+      const { error: membersError } = await supabaseClient
+        .from('schedule_members')
+        .insert(scheduleMembersToInsert);
+
+      if (membersError) {
+        console.error('Error creating schedule_members:', membersError);
+        handleSupabaseError(membersError);
+      }
+    }
+
+    return sortedSchedules;
   }
 
   private determineScheduleType(config: GenerationConfigurationDto): string {
@@ -915,6 +1238,86 @@ export class ScheduleGenerationService {
     } else {
       return 'individual';
     }
+  }
+
+  /**
+   * Enriquece múltiplas configurações com nomes dos grupos (otimizado)
+   * Busca todos os grupos únicos de uma vez
+   */
+  private async enrichConfigurationsWithGroupNames(
+    dataArray: any[],
+    scheduledAreaId: string,
+  ): Promise<any[]> {
+    // Coletar todos os groupIds únicos
+    const allGroupIds = new Set<string>();
+    dataArray.forEach((item) => {
+      if (
+        item.configuration?.groupConfig?.groupIds &&
+        Array.isArray(item.configuration.groupConfig.groupIds)
+      ) {
+        item.configuration.groupConfig.groupIds.forEach((id: string) => {
+          allGroupIds.add(id);
+        });
+      }
+    });
+
+    // Buscar todos os grupos de uma vez
+    let groupsMap = new Map<string, string>();
+    if (allGroupIds.size > 0) {
+      const supabaseClient = this.supabaseService.getRawClient();
+      const { data: groups } = await supabaseClient
+        .from('area_groups')
+        .select('id, name')
+        .in('id', Array.from(allGroupIds))
+        .eq('scheduled_area_id', scheduledAreaId);
+
+      if (groups && groups.length > 0) {
+        groups.forEach((g: any) => {
+          groupsMap.set(g.id, g.name);
+        });
+      }
+    }
+
+    // Enriquecer cada configuração
+    return dataArray.map((item) => {
+      if (!item.configuration) {
+        return item;
+      }
+
+      const config = item.configuration;
+      const enrichedConfig = { ...config };
+
+      if (
+        config.groupConfig &&
+        config.groupConfig.groupIds &&
+        Array.isArray(config.groupConfig.groupIds) &&
+        config.groupConfig.groupIds.length > 0
+      ) {
+        enrichedConfig.groupConfig = {
+          ...config.groupConfig,
+          groups: config.groupConfig.groupIds.map((groupId: string) => ({
+            id: groupId,
+            name: groupsMap.get(groupId) || null,
+          })),
+        };
+      }
+
+      return {
+        ...item,
+        configuration: enrichedConfig,
+      };
+    });
+  }
+
+  /**
+   * Enriquece uma única configuração com nomes dos grupos
+   */
+  private async enrichConfigurationWithGroupNames(
+    data: any,
+  ): Promise<any> {
+    return (
+      await this.enrichConfigurationsWithGroupNames([data], data.scheduled_area_id)
+    )[0];
   }
 
   private mapToResponseDto(data: any): ScheduleGenerationResponseDto {

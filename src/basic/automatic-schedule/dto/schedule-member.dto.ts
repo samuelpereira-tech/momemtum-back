@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsOptional, IsEnum, IsBoolean, ValidateIf } from 'class-validator';
 
 export enum MemberStatus {
   PENDING = 'pending',
@@ -46,6 +46,17 @@ export class UpdateScheduleMemberDto {
   @IsOptional()
   @IsEnum(MemberStatus)
   status?: MemberStatus;
+
+  @ApiProperty({
+    description: 'Whether the person was present',
+    example: true,
+    required: false,
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((o) => o.present !== null && o.present !== undefined)
+  @IsBoolean()
+  present?: boolean | null;
 }
 
 export class ScheduleMemberResponseDto {
@@ -99,6 +110,13 @@ export class ScheduleMemberResponseDto {
     enum: MemberStatus,
   })
   status: MemberStatus;
+
+  @ApiProperty({
+    description: 'Whether the person was present',
+    example: true,
+    nullable: true,
+  })
+  present: boolean | null;
 
   @ApiProperty({
     description: 'Creation timestamp',

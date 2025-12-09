@@ -22,6 +22,7 @@ export class ScheduleMemberService {
     scheduledAreaId: string,
     scheduleId: string,
     createDto: CreateScheduleMemberDto,
+    changedBy?: string,
   ): Promise<ScheduleMemberResponseDto> {
     const supabaseClient = this.supabaseService.getRawClient();
 
@@ -54,6 +55,7 @@ export class ScheduleMemberService {
         person_id: createDto.personId,
         responsibility_id: createDto.responsibilityId,
         status: 'pending',
+        present: null,
       })
       .select()
       .single();
@@ -61,6 +63,14 @@ export class ScheduleMemberService {
     if (error) {
       handleSupabaseError(error);
     }
+
+    // Criar log de adição
+    await this.createLog(scheduleId, member.id, createDto.personId, 'member_added', null, {
+      personId: createDto.personId,
+      responsibilityId: createDto.responsibilityId,
+      status: 'pending',
+      present: null,
+    }, changedBy);
 
     return this.mapToResponseDto(member);
   }
@@ -70,6 +80,7 @@ export class ScheduleMemberService {
     scheduleId: string,
     memberId: string,
     updateDto: UpdateScheduleMemberDto,
+    changedBy?: string,
   ): Promise<ScheduleMemberResponseDto> {
     const supabaseClient = this.supabaseService.getRawClient();
 
@@ -94,11 +105,24 @@ export class ScheduleMemberService {
     }
 
     const updateData: any = {};
-    if (updateDto.responsibilityId) {
+    const oldValues: any = {};
+
+    if (updateDto.responsibilityId !== undefined && updateDto.responsibilityId !== existing.responsibility_id) {
+      oldValues.responsibilityId = existing.responsibility_id;
       updateData.responsibility_id = updateDto.responsibilityId;
     }
-    if (updateDto.status) {
+    if (updateDto.status !== undefined && updateDto.status !== existing.status) {
+      oldValues.status = existing.status;
       updateData.status = updateDto.status;
+    }
+    if (updateDto.present !== undefined && updateDto.present !== existing.present) {
+      oldValues.present = existing.present;
+      updateData.present = updateDto.present;
+    }
+
+    // Se não há mudanças, retornar sem atualizar
+    if (Object.keys(updateData).length === 0) {
+      return this.mapToResponseDto(existing);
     }
 
     const { data: member, error } = await supabaseClient
@@ -113,6 +137,23 @@ export class ScheduleMemberService {
       handleSupabaseError(error);
     }
 
+    // Criar logs para cada mudança
+    if (oldValues.status !== undefined) {
+      await this.createLog(scheduleId, memberId, existing.person_id, 'member_status_changed', {
+        status: oldValues.status,
+      }, {
+        status: updateDto.status,
+      }, changedBy);
+    }
+
+    if (oldValues.present !== undefined) {
+      await this.createLog(scheduleId, memberId, existing.person_id, 'member_present_changed', {
+        present: oldValues.present,
+      }, {
+        present: updateDto.present,
+      }, changedBy);
+    }
+
     return this.mapToResponseDto(member);
   }
 
@@ -120,16 +161,17 @@ export class ScheduleMemberService {
     scheduledAreaId: string,
     scheduleId: string,
     memberId: string,
+    changedBy?: string,
   ): Promise<void> {
     const supabaseClient = this.supabaseService.getRawClient();
 
     // Verificar se o schedule existe e pertence à área
     await this.validateSchedule(scheduledAreaId, scheduleId);
 
-    // Verificar se o membro existe
+    // Verificar se o membro existe e obter dados para o log
     const { data: existing } = await supabaseClient
       .from(this.tableName)
-      .select('id')
+      .select('*')
       .eq('id', memberId)
       .eq('schedule_id', scheduleId)
       .single();
@@ -147,6 +189,14 @@ export class ScheduleMemberService {
     if (error) {
       handleSupabaseError(error);
     }
+
+    // Criar log de remoção
+    await this.createLog(scheduleId, memberId, existing.person_id, 'member_removed', {
+      personId: existing.person_id,
+      responsibilityId: existing.responsibility_id,
+      status: existing.status,
+      present: existing.present,
+    }, null, changedBy);
   }
 
   private async validateSchedule(
@@ -246,8 +296,38 @@ export class ScheduleMemberService {
           }
         : null,
       status: member.status,
+      present: member.present,
       createdAt: member.created_at,
     };
+  }
+
+  private async createLog(
+    scheduleId: string,
+    scheduleMemberId: string | null,
+    personId: string | null,
+    changeType: string,
+    oldValue: any,
+    newValue: any,
+    changedBy?: string,
+  ): Promise<void> {
+    const supabaseClient = this.supabaseService.getRawClient();
+
+    const { error } = await supabaseClient
+      .from('schedule_members_logs')
+      .insert({
+        schedule_id: scheduleId,
+        schedule_member_id: scheduleMemberId,
+        person_id: personId,
+        change_type: changeType,
+        old_value: oldValue || null,
+        new_value: newValue || null,
+        changed_by: changedBy || null,
+      });
+
+    if (error) {
+      // Não falhar a operação principal se o log falhar, apenas logar o erro
+      console.error('Error creating schedule_members_log:', error);
+    }
   }
 }
 

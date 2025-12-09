@@ -19,6 +19,8 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { AuthGuard } from '../../../authentication/core/guards/auth.guard';
+import { CurrentUser } from '../../../authentication/core/decorators/current-user.decorator';
+import type { User } from '../../../authentication/core/interfaces/auth.interface';
 import { ScheduleMemberService } from '../services/schedule-member.service';
 import {
   CreateScheduleMemberDto,
@@ -69,8 +71,9 @@ export class ScheduleMemberController {
     @Param('scheduledAreaId') scheduledAreaId: string,
     @Param('scheduleId') scheduleId: string,
     @Body() createDto: CreateScheduleMemberDto,
+    @CurrentUser() user: User,
   ): Promise<ScheduleMemberResponseDto> {
-    return this.scheduleMemberService.create(scheduledAreaId, scheduleId, createDto);
+    return this.scheduleMemberService.create(scheduledAreaId, scheduleId, createDto, user.id);
   }
 
   @Patch(':memberId')
@@ -112,12 +115,14 @@ export class ScheduleMemberController {
     @Param('scheduleId') scheduleId: string,
     @Param('memberId') memberId: string,
     @Body() updateDto: UpdateScheduleMemberDto,
+    @CurrentUser() user: User,
   ): Promise<ScheduleMemberResponseDto> {
     return this.scheduleMemberService.update(
       scheduledAreaId,
       scheduleId,
       memberId,
       updateDto,
+      user.id,
     );
   }
 
@@ -158,8 +163,9 @@ export class ScheduleMemberController {
     @Param('scheduledAreaId') scheduledAreaId: string,
     @Param('scheduleId') scheduleId: string,
     @Param('memberId') memberId: string,
+    @CurrentUser() user: User,
   ): Promise<void> {
-    return this.scheduleMemberService.remove(scheduledAreaId, scheduleId, memberId);
+    return this.scheduleMemberService.remove(scheduledAreaId, scheduleId, memberId, user.id);
   }
 }
 

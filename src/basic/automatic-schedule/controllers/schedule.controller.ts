@@ -20,6 +20,8 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { AuthGuard } from '../../../authentication/core/guards/auth.guard';
+import { CurrentUser } from '../../../authentication/core/decorators/current-user.decorator';
+import type { User } from '../../../authentication/core/interfaces/auth.interface';
 import { ScheduleService } from '../services/schedule.service';
 import {
   CreateScheduleDto,
@@ -209,7 +211,7 @@ export class ScheduleController {
   @ApiOperation({
     summary: 'Update schedule',
     description:
-      'Updates a schedule. Only manual schedules can be fully updated. Automatically generated schedules can only have their status and members updated.',
+      'Updates a schedule. Can update startDatetime, endDatetime, and status for any schedule.',
   })
   @ApiParam({
     name: 'scheduledAreaId',
@@ -235,8 +237,9 @@ export class ScheduleController {
     @Param('scheduledAreaId') scheduledAreaId: string,
     @Param('scheduleId') scheduleId: string,
     @Body() updateDto: UpdateScheduleDto,
+    @CurrentUser() user: User,
   ): Promise<ScheduleDetailsResponseDto> {
-    return this.scheduleService.update(scheduledAreaId, scheduleId, updateDto);
+    return this.scheduleService.update(scheduledAreaId, scheduleId, updateDto, user.id);
   }
 
   @Delete(':scheduleId')

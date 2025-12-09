@@ -84,16 +84,28 @@ export class ScheduleService {
       handleSupabaseError(error);
     }
 
-    // Contar participantes para cada schedule
-    const schedulesWithCounts = await Promise.all(
-      (data || []).map(async (schedule: any) => {
-        const participantsCount = await this.countParticipants(schedule.id);
-        return {
-          ...this.mapToResponseDto(schedule),
-          participantsCount,
-        };
-      }),
-    );
+    // Buscar participantes para cada schedule (otimizado - busca todos de uma vez)
+    const scheduleIds = (data || []).map((s: any) => s.id);
+    const participantsMap = await this.getParticipantsMap(scheduleIds);
+
+    // Buscar logs para todas as schedules
+    const logsMap = await this.getLogsMap(scheduleIds);
+
+    // Contar participantes e incluir lista de participantes para cada schedule
+    const schedulesWithCounts = (data || []).map((schedule: any) => {
+      const participants = participantsMap.get(schedule.id) || [];
+      const logs = logsMap.get(schedule.id) || [];
+      return {
+        ...this.mapToResponseDto(schedule),
+        participantsCount: participants.length,
+        participants: participants.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          imageUrl: p.imageUrl,
+        })),
+        logs: logs,
+      };
+    });
 
     const total = count || 0;
     const totalPages = Math.ceil(total / limitNum);
@@ -135,10 +147,14 @@ export class ScheduleService {
 
     // Buscar detalhes completos
     const details = await this.getScheduleDetails(scheduleId);
+    
+    // Buscar logs
+    const logs = await this.getLogsForSchedule(scheduleId);
 
     return {
       ...this.mapToResponseDto(schedule),
       participantsCount: await this.countParticipants(scheduleId),
+      logs: logs,
       ...details,
     };
   }
@@ -218,20 +234,12 @@ export class ScheduleService {
     scheduledAreaId: string,
     scheduleId: string,
     updateScheduleDto: UpdateScheduleDto,
+    changedBy?: string,
   ): Promise<ScheduleDetailsResponseDto> {
     const supabaseClient = this.supabaseService.getRawClient();
 
     // Verificar se existe
     const existing = await this.findOne(scheduledAreaId, scheduleId);
-
-    // Se for uma escala gerada automaticamente, só pode atualizar status
-    if (existing.scheduleGenerationId) {
-      if (updateScheduleDto.startDatetime || updateScheduleDto.endDatetime) {
-        throw new BadRequestException(
-          'Cannot update startDatetime or endDatetime for automatically generated schedules',
-        );
-      }
-    }
 
     // Validar datas se fornecidas
     if (updateScheduleDto.startDatetime && updateScheduleDto.endDatetime) {
@@ -244,14 +252,43 @@ export class ScheduleService {
     }
 
     const updateData: any = {};
-    if (updateScheduleDto.startDatetime) {
+    
+    // Criar logs para mudanças
+    if (updateScheduleDto.startDatetime && updateScheduleDto.startDatetime !== existing.startDatetime) {
       updateData.start_datetime = updateScheduleDto.startDatetime;
+      await this.createLog(scheduleId, null, null, 'schedule_start_date_changed', {
+        startDatetime: existing.startDatetime,
+      }, {
+        startDatetime: updateScheduleDto.startDatetime,
+      }, changedBy);
     }
-    if (updateScheduleDto.endDatetime) {
+    
+    if (updateScheduleDto.endDatetime && updateScheduleDto.endDatetime !== existing.endDatetime) {
       updateData.end_datetime = updateScheduleDto.endDatetime;
+      await this.createLog(scheduleId, null, null, 'schedule_end_date_changed', {
+        endDatetime: existing.endDatetime,
+      }, {
+        endDatetime: updateScheduleDto.endDatetime,
+      }, changedBy);
     }
-    if (updateScheduleDto.status) {
+    
+    if (updateScheduleDto.status && updateScheduleDto.status !== existing.status) {
       updateData.status = updateScheduleDto.status;
+      await this.createLog(scheduleId, null, null, 'schedule_status_changed', {
+        status: existing.status,
+      }, {
+        status: updateScheduleDto.status,
+      }, changedBy);
+    }
+
+    // Se não há mudanças, retornar sem atualizar
+    if (Object.keys(updateData).length === 0) {
+      const details = await this.getScheduleDetails(scheduleId);
+      return {
+        ...this.mapToResponseDto(existing as any),
+        participantsCount: await this.countParticipants(scheduleId),
+        ...details,
+      };
     }
 
     const { data: schedule, error } = await supabaseClient
@@ -387,8 +424,30 @@ export class ScheduleService {
     }
   }
 
-  private async createScheduleTeam(scheduleId: string, teamId: string): Promise<void> {
+  private async createScheduleTeam(scheduleId: string, teamId: string, changedBy?: string): Promise<void> {
     const supabaseClient = this.supabaseService.getRawClient();
+
+    // Verificar se já existe uma equipe
+    const { data: existing } = await supabaseClient
+      .from('schedule_teams')
+      .select('team_id')
+      .eq('schedule_id', scheduleId)
+      .single();
+
+    if (existing && existing.team_id !== teamId) {
+      // Log de mudança de equipe
+      await this.createLog(scheduleId, null, null, 'team_changed', {
+        teamId: existing.team_id,
+      }, {
+        teamId: teamId,
+      }, changedBy);
+
+      // Remover equipe antiga
+      await supabaseClient
+        .from('schedule_teams')
+        .delete()
+        .eq('schedule_id', scheduleId);
+    }
 
     const { error } = await supabaseClient
       .from('schedule_teams')
@@ -405,19 +464,76 @@ export class ScheduleService {
   private async createScheduleTeamAssignments(
     scheduleId: string,
     assignments: Array<{ personId: string; teamRoleId: string }>,
+    changedBy?: string,
   ): Promise<void> {
     const supabaseClient = this.supabaseService.getRawClient();
 
-    const { error } = await supabaseClient.from('schedule_team_assignments').insert(
-      assignments.map((assignment) => ({
-        schedule_id: scheduleId,
-        person_id: assignment.personId,
-        team_role_id: assignment.teamRoleId,
-      })),
+    // Buscar atribuições existentes
+    const { data: existingAssignments } = await supabaseClient
+      .from('schedule_team_assignments')
+      .select('person_id, team_role_id')
+      .eq('schedule_id', scheduleId);
+
+    const existingSet = new Set(
+      (existingAssignments || []).map((a: any) => `${a.person_id}-${a.team_role_id}`)
     );
 
-    if (error) {
-      handleSupabaseError(error);
+    // Identificar novas atribuições
+    const newAssignments = assignments.filter(
+      (a) => !existingSet.has(`${a.personId}-${a.teamRoleId}`)
+    );
+
+    // Identificar atribuições removidas
+    const assignmentSet = new Set(
+      assignments.map((a) => `${a.personId}-${a.teamRoleId}`)
+    );
+    const removedAssignments = (existingAssignments || []).filter(
+      (a: any) => !assignmentSet.has(`${a.person_id}-${a.team_role_id}`)
+    );
+
+    // Criar logs para remoções
+    for (const removed of removedAssignments) {
+      await this.createLog(scheduleId, null, removed.person_id, 'team_member_removed', {
+        personId: removed.person_id,
+        teamRoleId: removed.team_role_id,
+      }, null, changedBy);
+    }
+
+    // Remover atribuições antigas que não estão mais na lista
+    if (removedAssignments.length > 0) {
+      const { error: deleteError } = await supabaseClient
+        .from('schedule_team_assignments')
+        .delete()
+        .eq('schedule_id', scheduleId)
+        .in('person_id', removedAssignments.map((a: any) => a.person_id))
+        .in('team_role_id', removedAssignments.map((a: any) => a.team_role_id));
+
+      if (deleteError) {
+        handleSupabaseError(deleteError);
+      }
+    }
+
+    // Inserir novas atribuições
+    if (newAssignments.length > 0) {
+      const { error } = await supabaseClient.from('schedule_team_assignments').insert(
+        newAssignments.map((assignment) => ({
+          schedule_id: scheduleId,
+          person_id: assignment.personId,
+          team_role_id: assignment.teamRoleId,
+        })),
+      );
+
+      if (error) {
+        handleSupabaseError(error);
+      }
+
+      // Criar logs para novas atribuições
+      for (const assignment of newAssignments) {
+        await this.createLog(scheduleId, null, assignment.personId, 'team_member_added', null, {
+          personId: assignment.personId,
+          teamRoleId: assignment.teamRoleId,
+        }, changedBy);
+      }
     }
   }
 
@@ -440,6 +556,81 @@ export class ScheduleService {
     const assignmentsCount = (assignmentsResult as any).count || 0;
 
     return membersCount + assignmentsCount;
+  }
+
+  /**
+   * Busca todos os participantes de múltiplas schedules de uma vez (otimizado)
+   * Retorna um mapa de schedule_id -> array de participantes
+   */
+  private async getParticipantsMap(
+    scheduleIds: string[],
+  ): Promise<Map<string, Array<{ id: string; name: string; imageUrl: string | null }>>> {
+    if (scheduleIds.length === 0) {
+      return new Map();
+    }
+
+    const supabaseClient = this.supabaseService.getRawClient();
+    const participantsMap = new Map<
+      string,
+      Array<{ id: string; name: string; imageUrl: string | null }>
+    >();
+
+    // Inicializar mapas vazios para cada schedule
+    scheduleIds.forEach((id) => {
+      participantsMap.set(id, []);
+    });
+
+    // Buscar membros (schedule_members)
+    const { data: members } = await supabaseClient
+      .from('schedule_members')
+      .select('schedule_id, person_id, persons(id, full_name, photo_url)')
+      .in('schedule_id', scheduleIds);
+
+    if (members && members.length > 0) {
+      members.forEach((m: any) => {
+        const scheduleId = m.schedule_id;
+        const person = m.persons;
+        if (person && scheduleId) {
+          const existing = participantsMap.get(scheduleId) || [];
+          // Verificar se a pessoa já foi adicionada (evitar duplicatas)
+          if (!existing.some((p) => p.id === person.id)) {
+            existing.push({
+              id: person.id,
+              name: person.full_name || '',
+              imageUrl: person.photo_url || null,
+            });
+            participantsMap.set(scheduleId, existing);
+          }
+        }
+      });
+    }
+
+    // Buscar atribuições de equipe (schedule_team_assignments)
+    const { data: assignments } = await supabaseClient
+      .from('schedule_team_assignments')
+      .select('schedule_id, person_id, persons(id, full_name, photo_url)')
+      .in('schedule_id', scheduleIds);
+
+    if (assignments && assignments.length > 0) {
+      assignments.forEach((a: any) => {
+        const scheduleId = a.schedule_id;
+        const person = a.persons;
+        if (person && scheduleId) {
+          const existing = participantsMap.get(scheduleId) || [];
+          // Verificar se a pessoa já foi adicionada (evitar duplicatas)
+          if (!existing.some((p) => p.id === person.id)) {
+            existing.push({
+              id: person.id,
+              name: person.full_name || '',
+              imageUrl: person.photo_url || null,
+            });
+            participantsMap.set(scheduleId, existing);
+          }
+        }
+      });
+    }
+
+    return participantsMap;
   }
 
   private async getScheduleDetails(scheduleId: string): Promise<any> {
@@ -585,6 +776,7 @@ export class ScheduleService {
             }
           : null,
         status: m.status,
+        present: m.present,
         createdAt: m.created_at,
       })),
       comments: (comments || []).map((c: any) => ({
@@ -596,6 +788,67 @@ export class ScheduleService {
         updatedAt: c.updated_at,
       })),
     };
+  }
+
+  private async getLogsMap(
+    scheduleIds: string[],
+  ): Promise<Map<string, Array<{ id: string; changeType: string; oldValue?: any; newValue?: any; changedBy?: string | null; createdAt: string }>>> {
+    if (scheduleIds.length === 0) {
+      return new Map();
+    }
+
+    const supabaseClient = this.supabaseService.getRawClient();
+    const logsMap = new Map<string, Array<any>>();
+
+    // Inicializar mapas vazios para cada schedule
+    scheduleIds.forEach((id) => {
+      logsMap.set(id, []);
+    });
+
+    const { data: logs } = await supabaseClient
+      .from('schedule_members_logs')
+      .select('*')
+      .in('schedule_id', scheduleIds)
+      .order('created_at', { ascending: false });
+
+    if (logs && logs.length > 0) {
+      logs.forEach((log: any) => {
+        const scheduleId = log.schedule_id;
+        const existing = logsMap.get(scheduleId) || [];
+        existing.push({
+          id: log.id,
+          changeType: log.change_type,
+          oldValue: log.old_value || undefined,
+          newValue: log.new_value || undefined,
+          changedBy: log.changed_by,
+          createdAt: log.created_at,
+        });
+        logsMap.set(scheduleId, existing);
+      });
+    }
+
+    return logsMap;
+  }
+
+  private async getLogsForSchedule(
+    scheduleId: string,
+  ): Promise<Array<{ id: string; changeType: string; oldValue?: any; newValue?: any; changedBy?: string | null; createdAt: string }>> {
+    const supabaseClient = this.supabaseService.getRawClient();
+
+    const { data: logs } = await supabaseClient
+      .from('schedule_members_logs')
+      .select('*')
+      .eq('schedule_id', scheduleId)
+      .order('created_at', { ascending: false });
+
+    return (logs || []).map((log: any) => ({
+      id: log.id,
+      changeType: log.change_type,
+      oldValue: log.old_value || undefined,
+      newValue: log.new_value || undefined,
+      changedBy: log.changed_by,
+      createdAt: log.created_at,
+    }));
   }
 
   private mapToResponseDto(data: any): ScheduleResponseDto {
@@ -611,6 +864,35 @@ export class ScheduleService {
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
+  }
+
+  private async createLog(
+    scheduleId: string,
+    scheduleMemberId: string | null,
+    personId: string | null,
+    changeType: string,
+    oldValue: any,
+    newValue: any,
+    changedBy?: string,
+  ): Promise<void> {
+    const supabaseClient = this.supabaseService.getRawClient();
+
+    const { error } = await supabaseClient
+      .from('schedule_members_logs')
+      .insert({
+        schedule_id: scheduleId,
+        schedule_member_id: scheduleMemberId,
+        person_id: personId,
+        change_type: changeType,
+        old_value: oldValue || null,
+        new_value: newValue || null,
+        changed_by: changedBy || null,
+      });
+
+    if (error) {
+      // Não falhar a operação principal se o log falhar, apenas logar o erro
+      console.error('Error creating schedule_members_log:', error);
+    }
   }
 }
 

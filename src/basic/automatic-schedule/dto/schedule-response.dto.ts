@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
 import { GenerationConfigurationDto } from './generation-configuration.dto';
 
 export enum ScheduleType {
@@ -164,6 +165,17 @@ export class ScheduleResponseDto {
   participantsCount: number;
 
   @ApiProperty({
+    description: 'List of participants with id, name and imageUrl',
+    type: Array,
+    required: false,
+  })
+  participants?: Array<{
+    id: string;
+    name: string;
+    imageUrl: string | null;
+  }>;
+
+  @ApiProperty({
     description: 'Creation timestamp',
     example: '2025-01-15T10:30:00.000Z',
     format: 'date-time',
@@ -176,6 +188,20 @@ export class ScheduleResponseDto {
     format: 'date-time',
   })
   updatedAt: string;
+
+  @ApiProperty({
+    description: 'Logs of changes to schedule and members',
+    type: Array,
+    required: false,
+  })
+  logs?: Array<{
+    id: string;
+    changeType: string;
+    oldValue?: any;
+    newValue?: any;
+    changedBy?: string | null;
+    createdAt: string;
+  }>;
 }
 
 export class PaginatedScheduleResponseDto {
@@ -269,6 +295,8 @@ export class UpdateScheduleDto {
     format: 'date-time',
     required: false,
   })
+  @IsOptional()
+  @IsDateString()
   startDatetime?: string;
 
   @ApiProperty({
@@ -277,6 +305,8 @@ export class UpdateScheduleDto {
     format: 'date-time',
     required: false,
   })
+  @IsOptional()
+  @IsDateString()
   endDatetime?: string;
 
   @ApiProperty({
@@ -284,6 +314,8 @@ export class UpdateScheduleDto {
     enum: ScheduleStatus,
     required: false,
   })
+  @IsOptional()
+  @IsEnum(ScheduleStatus)
   status?: ScheduleStatus;
 }
 
