@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Post,
   Patch,
   Delete,
@@ -34,6 +35,37 @@ export class ScheduleCommentController {
   constructor(
     private readonly scheduleCommentService: ScheduleCommentService,
   ) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'List schedule comments',
+    description: 'Retrieves all comments for a schedule.',
+  })
+  @ApiParam({
+    name: 'scheduledAreaId',
+    description: 'Scheduled area unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'scheduleId',
+    description: 'Schedule unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Comments retrieved successfully',
+    type: [ScheduleCommentResponseDto],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
+  @ApiResponse({ status: 404, description: 'Schedule or scheduled area not found' })
+  async findAll(
+    @Param('scheduledAreaId') scheduledAreaId: string,
+    @Param('scheduleId') scheduleId: string,
+  ): Promise<ScheduleCommentResponseDto[]> {
+    return this.scheduleCommentService.findAll(scheduledAreaId, scheduleId);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -193,6 +225,8 @@ export class ScheduleCommentController {
     );
   }
 }
+
+
 
 
 

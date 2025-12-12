@@ -138,6 +138,14 @@ export class ScheduleMemberService {
     }
 
     // Criar logs para cada mudança
+    if (oldValues.responsibilityId !== undefined) {
+      await this.createLog(scheduleId, memberId, existing.person_id, 'member_responsibility_changed', {
+        responsibilityId: oldValues.responsibilityId,
+      }, {
+        responsibilityId: updateDto.responsibilityId,
+      }, changedBy);
+    }
+
     if (oldValues.status !== undefined) {
       await this.createLog(scheduleId, memberId, existing.person_id, 'member_status_changed', {
         status: oldValues.status,
@@ -312,8 +320,32 @@ export class ScheduleMemberService {
   ): Promise<void> {
     const supabaseClient = this.supabaseService.getRawClient();
 
+    // Verificar se changedBy existe na tabela persons antes de inserir
+    let validChangedBy: string | null = null;
+    if (changedBy) {
+      const { data: person } = await supabaseClient
+        .from('persons')
+        .select('id')
+        .eq('id', changedBy)
+        .single();
+
+      if (person) {
+        validChangedBy = changedBy;
+      }
+      // Se não existir, simplesmente não incluir o changed_by (será null)
+    }
+
+    // Gerar mensagem em português
+    const message = await this.generateLogMessage(
+      changeType,
+      oldValue,
+      newValue,
+      personId,
+      supabaseClient,
+    );
+
     const { error } = await supabaseClient
-      .from('schedule_members_logs')
+      .from('schedule_logs')
       .insert({
         schedule_id: scheduleId,
         schedule_member_id: scheduleMemberId,
@@ -321,13 +353,220 @@ export class ScheduleMemberService {
         change_type: changeType,
         old_value: oldValue || null,
         new_value: newValue || null,
-        changed_by: changedBy || null,
+        message: message,
+        changed_by: validChangedBy,
       });
 
     if (error) {
       // Não falhar a operação principal se o log falhar, apenas logar o erro
-      console.error('Error creating schedule_members_log:', error);
+      console.error('Error creating schedule_log:', error);
     }
+  }
+
+  private async generateLogMessage(
+    changeType: string,
+    oldValue: any,
+    newValue: any,
+    personId: string | null,
+    supabaseClient: any,
+  ): Promise<string | null> {
+    try {
+      switch (changeType) {
+        case 'member_added': {
+          const personName = personId
+            ? await this.getPersonName(personId, supabaseClient)
+            : 'Membro';
+          const responsibilityName = newValue?.responsibilityId
+            ? await this.getResponsibilityName(newValue.responsibilityId, supabaseClient)
+            : null;
+          return responsibilityName
+            ? `${personName} foi adicionado(a) como ${responsibilityName}`
+            : `${personName} foi adicionado(a)`;
+        }
+
+        case 'member_removed': {
+          const personName = personId
+            ? await this.getPersonName(personId, supabaseClient)
+            : 'Membro';
+          return `${personName} foi removido(a) da escala`;
+        }
+
+        case 'member_status_changed': {
+          const personName = personId
+            ? await this.getPersonName(personId, supabaseClient)
+            : 'Membro';
+          const oldStatus = this.translateStatus(oldValue?.status);
+          const newStatus = this.translateStatus(newValue?.status);
+          return `Status de ${personName} foi alterado de "${oldStatus}" para "${newStatus}"`;
+        }
+
+        case 'member_present_changed': {
+          const personName = personId
+            ? await this.getPersonName(personId, supabaseClient)
+            : 'Membro';
+          const oldPresent = oldValue?.present === true ? 'Presente' : oldValue?.present === false ? 'Ausente' : 'Não informado';
+          const newPresent = newValue?.present === true ? 'Presente' : newValue?.present === false ? 'Ausente' : 'Não informado';
+          return `Presença de ${personName} foi alterada de "${oldPresent}" para "${newPresent}"`;
+        }
+
+        case 'member_responsibility_changed': {
+          const personName = personId
+            ? await this.getPersonName(personId, supabaseClient)
+            : 'Membro';
+          const oldResponsibility = oldValue?.responsibilityId
+            ? await this.getResponsibilityName(oldValue.responsibilityId, supabaseClient)
+            : 'Não definida';
+          const newResponsibility = newValue?.responsibilityId
+            ? await this.getResponsibilityName(newValue.responsibilityId, supabaseClient)
+            : 'Não definida';
+          return `Função de ${personName} foi alterada de "${oldResponsibility}" para "${newResponsibility}"`;
+        }
+
+        case 'schedule_start_date_changed': {
+          const oldDate = oldValue?.startDatetime
+            ? new Date(oldValue.startDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          const newDate = newValue?.startDatetime
+            ? new Date(newValue.startDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          return `Data/hora de início da escala foi alterada de "${oldDate}" para "${newDate}"`;
+        }
+
+        case 'schedule_end_date_changed': {
+          const oldDate = oldValue?.endDatetime
+            ? new Date(oldValue.endDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          const newDate = newValue?.endDatetime
+            ? new Date(newValue.endDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          return `Data/hora de término da escala foi alterada de "${oldDate}" para "${newDate}"`;
+        }
+
+        case 'schedule_status_changed': {
+          const oldStatus = this.translateScheduleStatus(oldValue?.status);
+          const newStatus = this.translateScheduleStatus(newValue?.status);
+          return `Status da escala foi alterado de "${oldStatus}" para "${newStatus}"`;
+        }
+
+        case 'team_changed': {
+          const oldTeam = oldValue?.teamId
+            ? await this.getTeamName(oldValue.teamId, supabaseClient)
+            : 'Não definida';
+          const newTeam = newValue?.teamId
+            ? await this.getTeamName(newValue.teamId, supabaseClient)
+            : 'Não definida';
+          return `Equipe da escala foi alterada de "${oldTeam}" para "${newTeam}"`;
+        }
+
+        case 'team_member_added': {
+          const personName = newValue?.personId
+            ? await this.getPersonName(newValue.personId, supabaseClient)
+            : 'Membro';
+          const roleName = newValue?.teamRoleId
+            ? await this.getTeamRoleName(newValue.teamRoleId, supabaseClient)
+            : null;
+          return roleName
+            ? `${personName} foi adicionado(a) à equipe como ${roleName}`
+            : `${personName} foi adicionado(a) à equipe`;
+        }
+
+        case 'team_member_removed': {
+          const personName = oldValue?.personId
+            ? await this.getPersonName(oldValue.personId, supabaseClient)
+            : 'Membro';
+          return `${personName} foi removido(a) da equipe`;
+        }
+
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.error('Error generating log message:', error);
+      return null;
+    }
+  }
+
+  private async getPersonName(personId: string, supabaseClient: any): Promise<string> {
+    try {
+      const { data } = await supabaseClient
+        .from('persons')
+        .select('full_name')
+        .eq('id', personId)
+        .single();
+      return data?.full_name || 'Membro';
+    } catch {
+      return 'Membro';
+    }
+  }
+
+  private async getResponsibilityName(responsibilityId: string, supabaseClient: any): Promise<string> {
+    try {
+      const { data } = await supabaseClient
+        .from('responsibilities')
+        .select('name')
+        .eq('id', responsibilityId)
+        .single();
+      return data?.name || 'Função não encontrada';
+    } catch {
+      return 'Função não encontrada';
+    }
+  }
+
+  private async getTeamName(teamId: string, supabaseClient: any): Promise<string> {
+    try {
+      const { data } = await supabaseClient
+        .from('area_teams')
+        .select('name')
+        .eq('id', teamId)
+        .single();
+      return data?.name || 'Equipe não encontrada';
+    } catch {
+      return 'Equipe não encontrada';
+    }
+  }
+
+  private async getTeamRoleName(teamRoleId: string, supabaseClient: any): Promise<string> {
+    try {
+      // Primeiro buscar o responsibility_id
+      const { data: teamRole } = await supabaseClient
+        .from('area_team_roles')
+        .select('responsibility_id')
+        .eq('id', teamRoleId)
+        .single();
+
+      if (!teamRole?.responsibility_id) {
+        return 'Função não encontrada';
+      }
+
+      // Depois buscar o nome da responsabilidade
+      const { data: responsibility } = await supabaseClient
+        .from('responsibilities')
+        .select('name')
+        .eq('id', teamRole.responsibility_id)
+        .single();
+
+      return responsibility?.name || 'Função não encontrada';
+    } catch {
+      return 'Função não encontrada';
+    }
+  }
+
+  private translateStatus(status: string): string {
+    const translations: Record<string, string> = {
+      pending: 'Pendente',
+      accepted: 'Aceito',
+      rejected: 'Rejeitado',
+    };
+    return translations[status] || status;
+  }
+
+  private translateScheduleStatus(status: string): string {
+    const translations: Record<string, string> = {
+      pending: 'Pendente',
+      confirmed: 'Confirmada',
+      cancelled: 'Cancelada',
+    };
+    return translations[status] || status;
   }
 }
 

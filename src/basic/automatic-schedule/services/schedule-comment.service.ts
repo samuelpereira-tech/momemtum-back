@@ -17,6 +17,52 @@ export class ScheduleCommentService {
 
   constructor(private supabaseService: SupabaseService) {}
 
+  async findAll(
+    scheduledAreaId: string,
+    scheduleId: string,
+  ): Promise<ScheduleCommentResponseDto[]> {
+    const supabaseClient = this.supabaseService.getRawClient();
+
+    // Verificar se o schedule existe e pertence à área
+    await this.validateSchedule(scheduledAreaId, scheduleId);
+
+    // Buscar todos os comentários do schedule
+    const { data: comments, error } = await supabaseClient
+      .from(this.tableName)
+      .select('*')
+      .eq('schedule_id', scheduleId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      handleSupabaseError(error);
+    }
+
+    // Se não houver comentários, retornar array vazio
+    if (!comments || comments.length === 0) {
+      return [];
+    }
+
+    // Mapear para DTOs - tratar erros individualmente para não perder todos os comentários
+    const commentsPromises = comments.map(async (comment) => {
+      try {
+        return await this.mapToResponseDto(comment);
+      } catch (error) {
+        // Se houver erro ao mapear um comentário, retornar um DTO básico
+        console.error('Error mapping comment:', error);
+        return {
+          id: comment.id,
+          content: comment.content,
+          authorId: comment.author_id,
+          authorName: 'Unknown',
+          createdAt: comment.created_at,
+          updatedAt: comment.updated_at,
+        };
+      }
+    });
+    
+    return Promise.all(commentsPromises);
+  }
+
   async create(
     scheduledAreaId: string,
     scheduleId: string,
@@ -29,6 +75,7 @@ export class ScheduleCommentService {
     await this.validateSchedule(scheduledAreaId, scheduleId);
 
     // Criar comentário
+    // Nota: author_id é um UUID do Supabase Auth (auth.users), não da tabela persons
     const { data: comment, error } = await supabaseClient
       .from(this.tableName)
       .insert({
@@ -150,25 +197,46 @@ export class ScheduleCommentService {
   }
 
   private async mapToResponseDto(comment: any): Promise<ScheduleCommentResponseDto> {
-    const supabaseClient = this.supabaseService.getRawClient();
-
-    // Buscar informações do autor
-    const { data: author } = await supabaseClient
-      .from('persons')
-      .select('id, full_name')
-      .eq('id', comment.author_id)
-      .single();
+    // O author_id é um UUID do Supabase Auth (auth.users), não da tabela persons
+    // Por enquanto, retornamos 'Unknown' como nome do autor
+    // Para obter o nome real, seria necessário:
+    // 1. Criar uma view/função no banco que faça join com auth.users, ou
+    // 2. Usar o serviço admin do Supabase (requer permissões especiais), ou
+    // 3. Armazenar o nome do autor no momento da criação do comentário
+    
+    // Tentativa de buscar da tabela persons (caso exista uma relação)
+    // Isso é apenas um fallback caso o sistema tenha uma tabela de mapeamento
+    let authorName = 'Unknown';
+    if (comment.author_id) {
+      try {
+        const supabaseClient = this.supabaseService.getRawClient();
+        const { data: person, error: personError } = await supabaseClient
+          .from('persons')
+          .select('full_name')
+          .eq('id', comment.author_id)
+          .maybeSingle();
+        
+        if (!personError && person?.full_name) {
+          authorName = person.full_name;
+        }
+      } catch (error) {
+        // Se não encontrar, mantém 'Unknown'
+        // O author_id é do auth.users, não necessariamente existe em persons
+      }
+    }
 
     return {
       id: comment.id,
       content: comment.content,
       authorId: comment.author_id,
-      authorName: author?.full_name || 'Unknown',
+      authorName,
       createdAt: comment.created_at,
       updatedAt: comment.updated_at,
     };
   }
 }
+
+
 
 
 

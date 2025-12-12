@@ -253,26 +253,36 @@ export class ScheduleService {
 
     const updateData: any = {};
     
-    // Criar logs para mudanças
-    if (updateScheduleDto.startDatetime && updateScheduleDto.startDatetime !== existing.startDatetime) {
-      updateData.start_datetime = updateScheduleDto.startDatetime;
-      await this.createLog(scheduleId, null, null, 'schedule_start_date_changed', {
-        startDatetime: existing.startDatetime,
-      }, {
-        startDatetime: updateScheduleDto.startDatetime,
-      }, changedBy);
+    // Criar logs para mudanças - sempre logar quando houver mudança
+    if (updateScheduleDto.startDatetime !== undefined) {
+      const newStart = new Date(updateScheduleDto.startDatetime).toISOString();
+      const oldStart = new Date(existing.startDatetime).toISOString();
+      
+      if (newStart !== oldStart) {
+        updateData.start_datetime = updateScheduleDto.startDatetime;
+        await this.createLog(scheduleId, null, null, 'schedule_start_date_changed', {
+          startDatetime: existing.startDatetime,
+        }, {
+          startDatetime: updateScheduleDto.startDatetime,
+        }, changedBy);
+      }
     }
     
-    if (updateScheduleDto.endDatetime && updateScheduleDto.endDatetime !== existing.endDatetime) {
-      updateData.end_datetime = updateScheduleDto.endDatetime;
-      await this.createLog(scheduleId, null, null, 'schedule_end_date_changed', {
-        endDatetime: existing.endDatetime,
-      }, {
-        endDatetime: updateScheduleDto.endDatetime,
-      }, changedBy);
+    if (updateScheduleDto.endDatetime !== undefined) {
+      const newEnd = new Date(updateScheduleDto.endDatetime).toISOString();
+      const oldEnd = new Date(existing.endDatetime).toISOString();
+      
+      if (newEnd !== oldEnd) {
+        updateData.end_datetime = updateScheduleDto.endDatetime;
+        await this.createLog(scheduleId, null, null, 'schedule_end_date_changed', {
+          endDatetime: existing.endDatetime,
+        }, {
+          endDatetime: updateScheduleDto.endDatetime,
+        }, changedBy);
+      }
     }
     
-    if (updateScheduleDto.status && updateScheduleDto.status !== existing.status) {
+    if (updateScheduleDto.status !== undefined && updateScheduleDto.status !== existing.status) {
       updateData.status = updateScheduleDto.status;
       await this.createLog(scheduleId, null, null, 'schedule_status_changed', {
         status: existing.status,
@@ -676,16 +686,23 @@ export class ScheduleService {
     const { data: members } = await supabaseClient
       .from('schedule_members')
       .select(
-        'id, person_id, responsibility_id, status, persons(id, full_name, email, photo_url), responsibilities(id, name, description, image_url)',
+        'id, person_id, responsibility_id, status, present, persons(id, full_name, email, photo_url), responsibilities(id, name, description, image_url)',
       )
       .eq('schedule_id', scheduleId);
 
     // Buscar comentários
-    const { data: comments } = await supabaseClient
+    // Nota: author_id referencia auth.users(id), não persons(id)
+    // Não podemos fazer join direto com auth.users, então buscamos apenas os dados básicos
+    const { data: comments, error: commentsError } = await supabaseClient
       .from('schedule_comments')
-      .select('id, content, author_id, created_at, updated_at, persons!schedule_comments_author_id_fkey(id, full_name)')
+      .select('id, content, author_id, created_at, updated_at')
       .eq('schedule_id', scheduleId)
       .order('created_at', { ascending: false });
+    
+    // Se houver erro, logar mas não falhar (comentários são opcionais)
+    if (commentsError) {
+      console.error('Error fetching comments in getScheduleDetails:', commentsError);
+    }
 
     return {
       groups: (groups || []).map((g: any) => {
@@ -776,14 +793,16 @@ export class ScheduleService {
             }
           : null,
         status: m.status,
-        present: m.present,
+        present: m.present ?? null,
         createdAt: m.created_at,
       })),
       comments: (comments || []).map((c: any) => ({
         id: c.id,
         content: c.content,
         authorId: c.author_id,
-        authorName: c.persons?.full_name || 'Unknown',
+        // author_id referencia auth.users, não persons
+        // Por enquanto retornamos 'Unknown', mas pode ser melhorado buscando do auth.users
+        authorName: 'Unknown',
         createdAt: c.created_at,
         updatedAt: c.updated_at,
       })),
@@ -792,7 +811,7 @@ export class ScheduleService {
 
   private async getLogsMap(
     scheduleIds: string[],
-  ): Promise<Map<string, Array<{ id: string; changeType: string; oldValue?: any; newValue?: any; changedBy?: string | null; createdAt: string }>>> {
+  ): Promise<Map<string, Array<{ id: string; changeType: string; oldValue?: any; newValue?: any; changedBy?: string | null; message?: string | null; createdAt: string }>>> {
     if (scheduleIds.length === 0) {
       return new Map();
     }
@@ -806,7 +825,7 @@ export class ScheduleService {
     });
 
     const { data: logs } = await supabaseClient
-      .from('schedule_members_logs')
+      .from('schedule_logs')
       .select('*')
       .in('schedule_id', scheduleIds)
       .order('created_at', { ascending: false });
@@ -821,6 +840,7 @@ export class ScheduleService {
           oldValue: log.old_value || undefined,
           newValue: log.new_value || undefined,
           changedBy: log.changed_by,
+          message: log.message || null,
           createdAt: log.created_at,
         });
         logsMap.set(scheduleId, existing);
@@ -832,11 +852,11 @@ export class ScheduleService {
 
   private async getLogsForSchedule(
     scheduleId: string,
-  ): Promise<Array<{ id: string; changeType: string; oldValue?: any; newValue?: any; changedBy?: string | null; createdAt: string }>> {
+  ): Promise<Array<{ id: string; changeType: string; oldValue?: any; newValue?: any; changedBy?: string | null; message?: string | null; createdAt: string }>> {
     const supabaseClient = this.supabaseService.getRawClient();
 
     const { data: logs } = await supabaseClient
-      .from('schedule_members_logs')
+      .from('schedule_logs')
       .select('*')
       .eq('schedule_id', scheduleId)
       .order('created_at', { ascending: false });
@@ -847,6 +867,7 @@ export class ScheduleService {
       oldValue: log.old_value || undefined,
       newValue: log.new_value || undefined,
       changedBy: log.changed_by,
+      message: log.message || null,
       createdAt: log.created_at,
     }));
   }
@@ -877,8 +898,32 @@ export class ScheduleService {
   ): Promise<void> {
     const supabaseClient = this.supabaseService.getRawClient();
 
+    // Verificar se changedBy existe na tabela persons antes de inserir
+    let validChangedBy: string | null = null;
+    if (changedBy) {
+      const { data: person } = await supabaseClient
+        .from('persons')
+        .select('id')
+        .eq('id', changedBy)
+        .single();
+
+      if (person) {
+        validChangedBy = changedBy;
+      }
+      // Se não existir, simplesmente não incluir o changed_by (será null)
+    }
+
+    // Gerar mensagem em português
+    const message = await this.generateLogMessage(
+      changeType,
+      oldValue,
+      newValue,
+      personId,
+      supabaseClient,
+    );
+
     const { error } = await supabaseClient
-      .from('schedule_members_logs')
+      .from('schedule_logs')
       .insert({
         schedule_id: scheduleId,
         schedule_member_id: scheduleMemberId,
@@ -886,13 +931,148 @@ export class ScheduleService {
         change_type: changeType,
         old_value: oldValue || null,
         new_value: newValue || null,
-        changed_by: changedBy || null,
+        message: message,
+        changed_by: validChangedBy,
       });
 
     if (error) {
       // Não falhar a operação principal se o log falhar, apenas logar o erro
-      console.error('Error creating schedule_members_log:', error);
+      console.error('Error creating schedule_log:', error);
     }
+  }
+
+  private async generateLogMessage(
+    changeType: string,
+    oldValue: any,
+    newValue: any,
+    personId: string | null,
+    supabaseClient: any,
+  ): Promise<string | null> {
+    try {
+      switch (changeType) {
+        case 'schedule_start_date_changed': {
+          const oldDate = oldValue?.startDatetime
+            ? new Date(oldValue.startDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          const newDate = newValue?.startDatetime
+            ? new Date(newValue.startDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          return `Data/hora de início da escala foi alterada de "${oldDate}" para "${newDate}"`;
+        }
+
+        case 'schedule_end_date_changed': {
+          const oldDate = oldValue?.endDatetime
+            ? new Date(oldValue.endDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          const newDate = newValue?.endDatetime
+            ? new Date(newValue.endDatetime).toLocaleString('pt-BR')
+            : 'Não definida';
+          return `Data/hora de término da escala foi alterada de "${oldDate}" para "${newDate}"`;
+        }
+
+        case 'schedule_status_changed': {
+          const oldStatus = this.translateScheduleStatus(oldValue?.status);
+          const newStatus = this.translateScheduleStatus(newValue?.status);
+          return `Status da escala foi alterado de "${oldStatus}" para "${newStatus}"`;
+        }
+
+        case 'team_changed': {
+          const oldTeam = oldValue?.teamId
+            ? await this.getTeamName(oldValue.teamId, supabaseClient)
+            : 'Não definida';
+          const newTeam = newValue?.teamId
+            ? await this.getTeamName(newValue.teamId, supabaseClient)
+            : 'Não definida';
+          return `Equipe da escala foi alterada de "${oldTeam}" para "${newTeam}"`;
+        }
+
+        case 'team_member_added': {
+          const personName = newValue?.personId
+            ? await this.getPersonName(newValue.personId, supabaseClient)
+            : 'Membro';
+          const roleName = newValue?.teamRoleId
+            ? await this.getTeamRoleName(newValue.teamRoleId, supabaseClient)
+            : null;
+          return roleName
+            ? `${personName} foi adicionado(a) à equipe como ${roleName}`
+            : `${personName} foi adicionado(a) à equipe`;
+        }
+
+        case 'team_member_removed': {
+          const personName = oldValue?.personId
+            ? await this.getPersonName(oldValue.personId, supabaseClient)
+            : 'Membro';
+          return `${personName} foi removido(a) da equipe`;
+        }
+
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.error('Error generating log message:', error);
+      return null;
+    }
+  }
+
+  private async getPersonName(personId: string, supabaseClient: any): Promise<string> {
+    try {
+      const { data } = await supabaseClient
+        .from('persons')
+        .select('full_name')
+        .eq('id', personId)
+        .single();
+      return data?.full_name || 'Membro';
+    } catch {
+      return 'Membro';
+    }
+  }
+
+  private async getTeamName(teamId: string, supabaseClient: any): Promise<string> {
+    try {
+      const { data } = await supabaseClient
+        .from('area_teams')
+        .select('name')
+        .eq('id', teamId)
+        .single();
+      return data?.name || 'Equipe não encontrada';
+    } catch {
+      return 'Equipe não encontrada';
+    }
+  }
+
+  private async getTeamRoleName(teamRoleId: string, supabaseClient: any): Promise<string> {
+    try {
+      // Primeiro buscar o responsibility_id
+      const { data: teamRole } = await supabaseClient
+        .from('area_team_roles')
+        .select('responsibility_id')
+        .eq('id', teamRoleId)
+        .single();
+
+      if (!teamRole?.responsibility_id) {
+        return 'Função não encontrada';
+      }
+
+      // Depois buscar o nome da responsabilidade
+      const { data: responsibility } = await supabaseClient
+        .from('responsibilities')
+        .select('name')
+        .eq('id', teamRole.responsibility_id)
+        .single();
+
+      return responsibility?.name || 'Função não encontrada';
+    } catch {
+      return 'Função não encontrada';
+    }
+  }
+
+  private translateScheduleStatus(status: string): string {
+    const translations: Record<string, string> = {
+      pending: 'Pendente',
+      confirmed: 'Confirmada',
+      cancelled: 'Cancelada',
+    };
+    return translations[status] || status;
   }
 }
 

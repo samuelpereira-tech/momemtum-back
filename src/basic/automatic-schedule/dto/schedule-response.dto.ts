@@ -200,6 +200,7 @@ export class ScheduleResponseDto {
     oldValue?: any;
     newValue?: any;
     changedBy?: string | null;
+    message?: string | null;
     createdAt: string;
   }>;
 }

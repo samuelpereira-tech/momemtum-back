@@ -8,6 +8,7 @@
 -- ============================================
 
 -- Remover tabelas dependentes primeiro (se existirem) para evitar conflitos de foreign key
+DROP TABLE IF EXISTS schedule_logs CASCADE;
 DROP TABLE IF EXISTS schedule_comments CASCADE;
 DROP TABLE IF EXISTS schedule_members CASCADE;
 DROP TABLE IF EXISTS schedule_team_assignments CASCADE;
@@ -87,17 +88,22 @@ CREATE TABLE schedule_members (
 );
 
 -- Criar tabela de comentários em escalas
+-- NOTA IMPORTANTE: author_id referencia auth.users(id) do Supabase Auth, NÃO persons(id)
+-- Não é possível criar uma foreign key direta para auth.users no Supabase,
+-- então a validação deve ser feita no código da aplicação.
+-- Se você já criou a tabela com REFERENCES persons(id), remova a constraint:
+-- ALTER TABLE schedule_comments DROP CONSTRAINT IF EXISTS schedule_comments_author_id_fkey;
 CREATE TABLE schedule_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   schedule_id UUID NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
   content TEXT NOT NULL CHECK (LENGTH(content) >= 1 AND LENGTH(content) <= 5000),
-  author_id UUID NOT NULL REFERENCES persons(id) ON DELETE RESTRICT,
+  author_id UUID NOT NULL, -- Referencia auth.users(id) do Supabase Auth, não persons(id)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Criar tabela de logs de mudanças em schedule_members
-CREATE TABLE schedule_members_logs (
+-- Criar tabela de logs de mudanças em schedules e schedule_members
+CREATE TABLE schedule_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   schedule_id UUID NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
   schedule_member_id UUID REFERENCES schedule_members(id) ON DELETE SET NULL,
@@ -107,6 +113,7 @@ CREATE TABLE schedule_members_logs (
     'member_removed',
     'member_status_changed',
     'member_present_changed',
+    'member_responsibility_changed',
     'schedule_start_date_changed',
     'schedule_end_date_changed',
     'schedule_status_changed',
@@ -116,6 +123,7 @@ CREATE TABLE schedule_members_logs (
   )),
   old_value JSONB,
   new_value JSONB,
+  message TEXT,
   changed_by UUID REFERENCES persons(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -152,11 +160,11 @@ CREATE INDEX IF NOT EXISTS idx_schedule_comments_schedule_id ON schedule_comment
 CREATE INDEX IF NOT EXISTS idx_schedule_comments_author_id ON schedule_comments(author_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_comments_created_at ON schedule_comments(created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_schedule_id ON schedule_members_logs(schedule_id);
-CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_schedule_member_id ON schedule_members_logs(schedule_member_id);
-CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_person_id ON schedule_members_logs(person_id);
-CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_change_type ON schedule_members_logs(change_type);
-CREATE INDEX IF NOT EXISTS idx_schedule_members_logs_created_at ON schedule_members_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_schedule_logs_schedule_id ON schedule_logs(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_logs_schedule_member_id ON schedule_logs(schedule_member_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_logs_person_id ON schedule_logs(person_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_logs_change_type ON schedule_logs(change_type);
+CREATE INDEX IF NOT EXISTS idx_schedule_logs_created_at ON schedule_logs(created_at DESC);
 
 -- Criar função para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION update_schedules_updated_at()
@@ -225,8 +233,8 @@ COMMENT ON COLUMN schedule_members.present IS 'Indica se a pessoa esteve present
 COMMENT ON TABLE schedule_comments IS 'Tabela para armazenar comentários em escalas';
 COMMENT ON COLUMN schedule_comments.content IS 'Conteúdo do comentário (1-5000 caracteres)';
 
-COMMENT ON TABLE schedule_members_logs IS 'Tabela para armazenar logs de mudanças em schedule_members e schedules relacionadas';
-COMMENT ON COLUMN schedule_members_logs.change_type IS 'Tipo de mudança: member_added, member_removed, member_status_changed, member_present_changed, schedule_start_date_changed, schedule_end_date_changed, schedule_status_changed, team_changed, team_member_added, team_member_removed';
-COMMENT ON COLUMN schedule_members_logs.old_value IS 'Valor anterior em formato JSON';
-COMMENT ON COLUMN schedule_members_logs.new_value IS 'Novo valor em formato JSON';
+COMMENT ON TABLE schedule_logs IS 'Tabela para armazenar logs de mudanças em schedules e schedule_members';
+COMMENT ON COLUMN schedule_logs.change_type IS 'Tipo de mudança: member_added, member_removed, member_status_changed, member_present_changed, member_responsibility_changed, schedule_start_date_changed, schedule_end_date_changed, schedule_status_changed, team_changed, team_member_added, team_member_removed';
+COMMENT ON COLUMN schedule_logs.old_value IS 'Valor anterior em formato JSON';
+COMMENT ON COLUMN schedule_logs.new_value IS 'Novo valor em formato JSON';
 

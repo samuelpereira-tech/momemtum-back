@@ -34,19 +34,34 @@ export function isRateLimitError(error: any): boolean {
 function parseForeignKeyError(errorMessage: string): {
   table: string;
   constraint: string;
-  action: 'update' | 'delete';
+  action: 'insert' | 'update' | 'delete';
 } | null {
   // Padrão: "update or delete on table "X" violates foreign key constraint "Y_fkey" on table "Z"
   const match = errorMessage.match(
-    /(update|delete) on table "([^"]+)" violates foreign key constraint "([^"]+)" on table "([^"]+)"/i,
+    /(insert|update|delete) on table "([^"]+)" violates foreign key constraint "([^"]+)" on table "([^"]+)"/i,
   );
   if (match) {
     return {
       table: match[2],
       constraint: match[3],
-      action: match[1].toLowerCase() as 'update' | 'delete',
+      action: match[1].toLowerCase() as 'insert' | 'update' | 'delete',
     };
   }
+  
+  // Padrão alternativo: "Key (column)=(value) is not present in table "table""
+  // Isso geralmente ocorre em INSERT quando a referência não existe
+  const insertMatch = errorMessage.match(
+    /Key \(([^)]+)\)=\([^)]+\) is not present in table "([^"]+)"/i,
+  );
+  if (insertMatch) {
+    // Para este caso, não temos todas as informações, mas sabemos que é um INSERT
+    return {
+      table: insertMatch[2],
+      constraint: insertMatch[1],
+      action: 'insert',
+    };
+  }
+  
   return null;
 }
 
@@ -148,7 +163,7 @@ async function findRelatedRecords(
   fkInfo: {
     table: string;
     constraint: string;
-    action: 'update' | 'delete';
+    action: 'insert' | 'update' | 'delete';
   },
   recordId: string,
 ): Promise<RelatedRecord[]> {
@@ -388,12 +403,22 @@ export async function handleSupabaseErrorWithDetails(
     throw new UnauthorizedException(errorMessage);
   }
 
-  // Erros de foreign key constraint - 409 Conflict
-  if (errorMessage.includes('violates foreign key constraint')) {
+  // Erros de foreign key constraint
+  if (errorMessage.includes('violates foreign key constraint') || 
+      errorMessage.includes('is not present in table')) {
     const fkInfo = parseForeignKeyError(errorMessage);
     if (fkInfo) {
-      const friendlyMessage = getForeignKeyErrorMessage(fkInfo);
-      const relatedRecords = await findRelatedRecords(supabaseClient, fkInfo, recordId);
+      // INSERT violations: referência não existe (400 Bad Request)
+      if (fkInfo.action === 'insert') {
+        throw new BadRequestException(
+          `A referência fornecida não existe. Verifique se o registro referenciado existe no sistema.`,
+        );
+      }
+      
+      // DELETE/UPDATE violations: registro está sendo usado (409 Conflict)
+      // TypeScript narrowing: após verificar 'insert', só pode ser 'update' ou 'delete'
+      const friendlyMessage = getForeignKeyErrorMessage(fkInfo as { table: string; constraint: string; action: 'update' | 'delete' });
+      const relatedRecords = await findRelatedRecords(supabaseClient, fkInfo as { table: string; constraint: string; action: 'update' | 'delete' }, recordId);
 
       // Cria uma exceção com os detalhes
       // O NestJS serializa o objeto passado como segundo parâmetro
@@ -402,6 +427,15 @@ export async function handleSupabaseErrorWithDetails(
         relatedRecords,
       } as ForeignKeyErrorDetails);
     }
+    
+    // Se não conseguiu parsear mas é um erro de foreign key, verifica se parece ser INSERT
+    if (errorMessage.toLowerCase().includes('insert') || 
+        errorMessage.includes('is not present in table')) {
+      throw new BadRequestException(
+        `A referência fornecida não existe. Verifique se o registro referenciado existe no sistema.`,
+      );
+    }
+    
     throw new ConflictException(
       'Esta operação não pode ser realizada porque o registro está sendo usado em outras partes do sistema.',
     );
@@ -447,13 +481,32 @@ export function handleSupabaseError(error: any): never {
     throw new UnauthorizedException(errorMessage);
   }
 
-  // Erros de foreign key constraint - 409 Conflict
-  if (errorMessage.includes('violates foreign key constraint')) {
+  // Erros de foreign key constraint
+  if (errorMessage.includes('violates foreign key constraint') || 
+      errorMessage.includes('is not present in table')) {
     const fkInfo = parseForeignKeyError(errorMessage);
     if (fkInfo) {
-      const friendlyMessage = getForeignKeyErrorMessage(fkInfo);
+      // INSERT violations: referência não existe (400 Bad Request)
+      if (fkInfo.action === 'insert') {
+        throw new BadRequestException(
+          `A referência fornecida não existe. Verifique se o registro referenciado existe no sistema.`,
+        );
+      }
+      
+      // DELETE/UPDATE violations: registro está sendo usado (409 Conflict)
+      // TypeScript narrowing: após verificar 'insert', só pode ser 'update' ou 'delete'
+      const friendlyMessage = getForeignKeyErrorMessage(fkInfo as { table: string; constraint: string; action: 'update' | 'delete' });
       throw new ConflictException(friendlyMessage);
     }
+    
+    // Se não conseguiu parsear mas é um erro de foreign key, verifica se parece ser INSERT
+    if (errorMessage.toLowerCase().includes('insert') || 
+        errorMessage.includes('is not present in table')) {
+      throw new BadRequestException(
+        `A referência fornecida não existe. Verifique se o registro referenciado existe no sistema.`,
+      );
+    }
+    
     throw new ConflictException(
       'Esta operação não pode ser realizada porque o registro está sendo usado em outras partes do sistema.',
     );

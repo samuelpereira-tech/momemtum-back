@@ -27,6 +27,7 @@ import {
   ApiQuery,
   ApiConsumes,
   ApiBody,
+  ApiParam,
 } from '@nestjs/swagger';
 import { PersonService } from '../services/person.service';
 import { CreatePersonDto } from '../dto/create-person.dto';
@@ -36,6 +37,8 @@ import {
   PhotoUploadResponseDto,
   PaginatedPersonResponseDto,
 } from '../dto/person-response.dto';
+import { PersonAvailabilityResponseDto } from '../dto/person-availability-response.dto';
+import { PersonAvailabilityQueryDto } from '../dto/person-availability-query.dto';
 import { AuthGuard } from '../../../authentication/core/guards/auth.guard';
 import type { MulterFile } from '../interfaces/file.interface';
 
@@ -216,6 +219,46 @@ export class PersonController {
     // Extrai o token do request (adicionado pelo AuthGuard)
     const token = (request as any).token;
     return this.personService.deletePhoto(id, token);
+  }
+
+  @Get(':id/availability')
+  @ApiOperation({
+    summary: 'Get person availability',
+    description: 'Retrieves dates within a period where the person is scheduled or absent',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Person unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: true,
+    description: 'Start date of the period (format: YYYY-MM-DD)',
+    type: String,
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: true,
+    description: 'End date of the period (format: YYYY-MM-DD)',
+    type: String,
+    example: '2024-01-31',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Person availability retrieved successfully',
+    type: PersonAvailabilityResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid input data or date range' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
+  @ApiResponse({ status: 404, description: 'Person not found' })
+  async getAvailability(
+    @Param('id') id: string,
+    @Query() query: PersonAvailabilityQueryDto,
+  ): Promise<PersonAvailabilityResponseDto> {
+    return this.personService.getAvailability(id, query.startDate, query.endDate);
   }
 }
 
