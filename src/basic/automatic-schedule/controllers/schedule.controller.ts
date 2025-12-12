@@ -30,6 +30,7 @@ import {
   ScheduleDetailsResponseDto,
   PaginatedScheduleResponseDto,
 } from '../dto/schedule-response.dto';
+import { PaginatedScheduleOptimizedResponseDto } from '../dto/schedule-optimized-response.dto';
 
 @ApiTags('schedules')
 @Controller('api/scheduled-areas/:scheduledAreaId/schedules')
@@ -143,6 +144,72 @@ export class ScheduleController {
       teamId,
       status,
     });
+  }
+
+  @Get('optimized')
+  @ApiOperation({
+    summary: 'List schedules optimized',
+    description:
+      'Retrieves a paginated, optimized list of schedules for a scheduled area with people information. Supports filtering by date range. Ordered by start date.',
+  })
+  @ApiParam({
+    name: 'scheduledAreaId',
+    description: 'Scheduled area unique identifier',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (starts at 1, default: 1)',
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of items per page (max 100, default: 10)',
+    type: Number,
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Filter by start date (inclusive, format: YYYY-MM-DD or ISO 8601)',
+    type: String,
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Filter by end date (inclusive, format: YYYY-MM-DD or ISO 8601)',
+    type: String,
+    example: '2024-01-31',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of optimized schedules retrieved successfully',
+    type: PaginatedScheduleOptimizedResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
+  @ApiResponse({ status: 404, description: 'Scheduled area not found' })
+  async findAllOptimized(
+    @Param('scheduledAreaId') scheduledAreaId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<PaginatedScheduleOptimizedResponseDto> {
+    const pageNum = page ? Math.max(1, parseInt(page, 10)) : 1;
+    const limitNum = limit ? Math.min(100, Math.max(1, parseInt(limit, 10))) : 10;
+
+    return this.scheduleService.findAllOptimized(
+      scheduledAreaId,
+      pageNum,
+      limitNum,
+      startDate,
+      endDate,
+    );
   }
 
   @Post()

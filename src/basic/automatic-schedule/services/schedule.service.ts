@@ -14,6 +14,11 @@ import {
 } from '../dto/schedule-response.dto';
 import { SchedulePreviewDto } from '../dto/generation-preview.dto';
 import { GenerationConfigurationDto } from '../dto/generation-configuration.dto';
+import {
+  PaginatedScheduleOptimizedResponseDto,
+  ScheduleOptimizedResponseDto,
+  PersonInScheduleDto,
+} from '../dto/schedule-optimized-response.dto';
 
 @Injectable()
 export class ScheduleService {
@@ -1073,6 +1078,260 @@ export class ScheduleService {
       cancelled: 'Cancelada',
     };
     return translations[status] || status;
+  }
+
+  async findAllOptimized(
+    scheduledAreaId: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+  ): Promise<PaginatedScheduleOptimizedResponseDto> {
+    const supabaseClient = this.supabaseService.getRawClient();
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.min(100, Math.max(1, limit));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Query base para buscar escalas
+    let query = supabaseClient
+      .from(this.tableName)
+      .select('id, start_datetime, end_datetime', { count: 'exact' })
+      .eq('scheduled_area_id', scheduledAreaId)
+      .neq('status', 'cancelled');
+
+    // Aplicar filtros de data
+    if (startDate) {
+      query = query.gte('start_datetime', startDate);
+    }
+
+    if (endDate) {
+      query = query.lte('end_datetime', endDate);
+    }
+
+    // Buscar escalas paginadas ordenadas por data
+    const { data: schedules, error, count } = await query
+      .order('start_datetime', { ascending: true })
+      .range(offset, offset + limitNum - 1);
+
+    if (error) {
+      handleSupabaseError(error);
+    }
+
+    if (!schedules || schedules.length === 0) {
+      return {
+        data: [],
+        meta: {
+          page: pageNum,
+          limit: limitNum,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limitNum),
+        },
+      };
+    }
+
+    const scheduleIds = schedules.map((s: any) => s.id);
+
+    // Buscar todas as pessoas relacionadas em batch
+    const pessoasMap = await this.getPessoasMapOptimized(scheduleIds);
+
+    // Montar resposta (remover personId temporário antes de retornar)
+    const data: ScheduleOptimizedResponseDto[] = schedules.map((schedule: any) => {
+      const pessoas = (pessoasMap.get(schedule.id) || []).map((p: any) => {
+        const { personId, ...pessoa } = p;
+        return pessoa;
+      });
+      return {
+        id: schedule.id,
+        startDatetime: schedule.start_datetime,
+        endDatetime: schedule.end_datetime,
+        pessoas: pessoas,
+      };
+    });
+
+    const total = count || 0;
+    const totalPages = Math.ceil(total / limitNum);
+
+    return {
+      data,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * Busca todas as pessoas relacionadas às escalas de forma otimizada
+   * Agrega pessoas de: schedule_members, schedule_team_assignments e grupos
+   */
+  private async getPessoasMapOptimized(
+    scheduleIds: string[],
+  ): Promise<Map<string, PersonInScheduleDto[]>> {
+    if (scheduleIds.length === 0) {
+      return new Map();
+    }
+
+    const supabaseClient = this.supabaseService.getRawClient();
+    const pessoasMap = new Map<string, PersonInScheduleDto[]>();
+
+    // Inicializar mapas vazios para cada schedule
+    scheduleIds.forEach((id) => {
+      pessoasMap.set(id, []);
+    });
+
+    // 1. Buscar schedule_members (pessoas diretamente atribuídas)
+    const { data: members } = await supabaseClient
+      .from('schedule_members')
+      .select(
+        'schedule_id, person_id, status, present, persons(id, full_name, photo_url), responsibilities(id, name)',
+      )
+      .in('schedule_id', scheduleIds);
+
+    if (members && members.length > 0) {
+      members.forEach((m: any) => {
+        const scheduleId = m.schedule_id;
+        const person = m.persons;
+        // O Supabase retorna responsibilities como objeto único (não array) quando há foreign key direta
+        const responsibility = m.responsibilities
+          ? (Array.isArray(m.responsibilities) ? m.responsibilities[0] : m.responsibilities)
+          : null;
+
+        if (person && scheduleId) {
+          const existing = pessoasMap.get(scheduleId) || [];
+          // Verificar se a pessoa já foi adicionada (evitar duplicatas por person_id)
+          const personIds = existing.map((p: any) => (p as any).personId).filter(Boolean);
+          if (!personIds.includes(person.id)) {
+            const pessoa: PersonInScheduleDto & { personId?: string } = {
+              nome: person.full_name || '',
+              url: person.photo_url || null,
+              função: responsibility?.name || '',
+              present: m.present ?? null,
+              status: m.status || 'pending',
+            };
+            (pessoa as any).personId = person.id; // Armazenar temporariamente para verificação
+            existing.push(pessoa);
+            pessoasMap.set(scheduleId, existing);
+          }
+        }
+      });
+    }
+
+    // 2. Buscar schedule_team_assignments (pessoas atribuídas via equipe)
+    const { data: assignments } = await supabaseClient
+      .from('schedule_team_assignments')
+      .select(
+        'schedule_id, person_id, persons(id, full_name, photo_url), area_team_roles(id, responsibility_id, responsibilities(id, name))',
+      )
+      .in('schedule_id', scheduleIds);
+
+    if (assignments && assignments.length > 0) {
+      assignments.forEach((a: any) => {
+        const scheduleId = a.schedule_id;
+        const person = a.persons;
+        const teamRole = a.area_team_roles;
+        // O Supabase pode retornar responsibilities como objeto único ou array
+        const responsibility = teamRole?.responsibilities
+          ? (Array.isArray(teamRole.responsibilities)
+              ? teamRole.responsibilities[0]
+              : teamRole.responsibilities)
+          : null;
+
+        if (person && scheduleId) {
+          const existing = pessoasMap.get(scheduleId) || [];
+          // Verificar se a pessoa já foi adicionada (evitar duplicatas por person_id)
+          const personIds = existing.map((p: any) => (p as any).personId).filter(Boolean);
+          if (!personIds.includes(person.id)) {
+            const pessoa: PersonInScheduleDto & { personId?: string } = {
+              nome: person.full_name || '',
+              url: person.photo_url || null,
+              função: responsibility?.name || '',
+              present: null, // Team assignments não têm present/status direto
+              status: 'accepted', // Assumir accepted para team assignments
+            };
+            (pessoa as any).personId = person.id; // Armazenar temporariamente para verificação
+            existing.push(pessoa);
+            pessoasMap.set(scheduleId, existing);
+          }
+        }
+      });
+    }
+
+    // 3. Buscar pessoas de grupos (schedule_groups → area_groups → area_group_members)
+    // Primeiro, buscar quais grupos estão associados a cada schedule
+    const { data: scheduleGroups } = await supabaseClient
+      .from('schedule_groups')
+      .select('schedule_id, group_id')
+      .in('schedule_id', scheduleIds);
+
+    if (scheduleGroups && scheduleGroups.length > 0) {
+      // Agrupar group_ids por schedule_id
+      const groupIdsBySchedule = new Map<string, string[]>();
+      scheduleGroups.forEach((sg: any) => {
+        const scheduleId = sg.schedule_id;
+        const groupId = sg.group_id;
+        const existing = groupIdsBySchedule.get(scheduleId) || [];
+        existing.push(groupId);
+        groupIdsBySchedule.set(scheduleId, existing);
+      });
+
+      // Buscar todos os group_ids únicos
+      const allGroupIds = Array.from(
+        new Set(
+          Array.from(groupIdsBySchedule.values()).flat(),
+        ),
+      );
+
+      if (allGroupIds.length > 0) {
+        // Buscar membros dos grupos com suas responsabilidades
+        const { data: groupMembers } = await supabaseClient
+          .from('area_group_members')
+          .select(
+            'group_id, person_id, persons(id, full_name, photo_url), responsibilities:area_group_member_responsibilities(responsibility:responsibilities(id, name))',
+          )
+          .in('group_id', allGroupIds);
+
+        if (groupMembers && groupMembers.length > 0) {
+          // Para cada schedule, adicionar membros dos seus grupos
+          groupIdsBySchedule.forEach((groupIds, scheduleId) => {
+            const existing = pessoasMap.get(scheduleId) || [];
+
+            groupMembers.forEach((gm: any) => {
+              // Verificar se este membro pertence a um grupo desta escala
+              if (groupIds.includes(gm.group_id)) {
+                const person = gm.persons;
+                const responsibilities = gm.responsibilities || [];
+                // Pegar a primeira responsabilidade (ou vazio se não houver)
+                const responsibility = Array.isArray(responsibilities) && responsibilities.length > 0
+                  ? responsibilities[0]?.responsibility
+                  : null;
+
+                if (person) {
+                  // Verificar se a pessoa já foi adicionada (evitar duplicatas por person_id)
+                  const personIds = existing.map((p: any) => (p as any).personId).filter(Boolean);
+                  if (!personIds.includes(person.id)) {
+                    const pessoa: PersonInScheduleDto & { personId?: string } = {
+                      nome: person.full_name || '',
+                      url: person.photo_url || null,
+                      função: responsibility?.name || '',
+                      present: null, // Membros de grupos não têm present/status direto na escala
+                      status: 'accepted', // Assumir accepted para membros de grupos
+                    };
+                    (pessoa as any).personId = person.id; // Armazenar temporariamente para verificação
+                    existing.push(pessoa);
+                  }
+                }
+              }
+            });
+
+            pessoasMap.set(scheduleId, existing);
+          });
+        }
+      }
+    }
+
+    return pessoasMap;
   }
 }
 
