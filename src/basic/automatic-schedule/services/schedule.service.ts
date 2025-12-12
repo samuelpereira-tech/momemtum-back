@@ -26,6 +26,25 @@ export class ScheduleService {
 
   constructor(private supabaseService: SupabaseService) {}
 
+  /**
+   * Normaliza uma data para incluir todo o dia
+   * Se a data não tem hora, adiciona 00:00:00.000Z para início ou 23:59:59.999Z para fim
+   */
+  private normalizeDate(dateStr: string, isEndDate: boolean = false): string {
+    // Se já tem hora/timezone, retorna como está
+    if (dateStr.includes('T') || dateStr.includes(' ')) {
+      return dateStr;
+    }
+    // Se é apenas data (YYYY-MM-DD), normaliza para incluir todo o dia
+    if (isEndDate) {
+      // Para endDate, inclui até o final do dia
+      return `${dateStr}T23:59:59.999Z`;
+    } else {
+      // Para startDate, começa no início do dia
+      return `${dateStr}T00:00:00.000Z`;
+    }
+  }
+
   async findAll(
     scheduledAreaId: string,
     page: number = 1,
@@ -54,12 +73,21 @@ export class ScheduleService {
       query = query.eq('schedule_generation_id', filters.scheduleGenerationId);
     }
 
-    if (filters?.startDate) {
-      query = query.gte('start_datetime', filters.startDate);
-    }
+    // Normalizar datas para incluir todo o dia se necessário
+    const normalizedStartDate = filters?.startDate ? this.normalizeDate(filters.startDate, false) : undefined;
+    const normalizedEndDate = filters?.endDate ? this.normalizeDate(filters.endDate, true) : undefined;
 
-    if (filters?.endDate) {
-      query = query.lte('end_datetime', filters.endDate);
+    // Aplicar filtros de data
+    // Retorna escalas que começam dentro do período [startDate, endDate]
+    if (normalizedStartDate && normalizedEndDate) {
+      // Ambos fornecidos: escalas que começam dentro do período
+      query = query.gte('start_datetime', normalizedStartDate).lte('start_datetime', normalizedEndDate);
+    } else if (normalizedStartDate) {
+      // Apenas startDate: escalas que começam após ou no startDate
+      query = query.gte('start_datetime', normalizedStartDate);
+    } else if (normalizedEndDate) {
+      // Apenas endDate: escalas que começam antes ou no endDate
+      query = query.lte('start_datetime', normalizedEndDate);
     }
 
     if (filters?.status) {
@@ -1092,6 +1120,10 @@ export class ScheduleService {
     const limitNum = Math.min(100, Math.max(1, limit));
     const offset = (pageNum - 1) * limitNum;
 
+    // Normalizar datas para incluir todo o dia se necessário
+    const normalizedStartDate = startDate ? this.normalizeDate(startDate, false) : undefined;
+    const normalizedEndDate = endDate ? this.normalizeDate(endDate, true) : undefined;
+
     // Query base para buscar escalas
     let query = supabaseClient
       .from(this.tableName)
@@ -1100,14 +1132,17 @@ export class ScheduleService {
       .neq('status', 'cancelled');
 
     // Aplicar filtros de data
-    if (startDate) {
-      query = query.gte('start_datetime', startDate);
+    // Retorna escalas que começam dentro do período [startDate, endDate]
+    if (normalizedStartDate && normalizedEndDate) {
+      // Ambos fornecidos: escalas que começam dentro do período
+      query = query.gte('start_datetime', normalizedStartDate).lte('start_datetime', normalizedEndDate);
+    } else if (normalizedStartDate) {
+      // Apenas startDate: escalas que começam após ou no startDate
+      query = query.gte('start_datetime', normalizedStartDate);
+    } else if (normalizedEndDate) {
+      // Apenas endDate: escalas que começam antes ou no endDate
+      query = query.lte('start_datetime', normalizedEndDate);
     }
-
-    if (endDate) {
-      query = query.lte('end_datetime', endDate);
-    }
-
     // Buscar escalas paginadas ordenadas por data
     const { data: schedules, error, count } = await query
       .order('start_datetime', { ascending: true })
