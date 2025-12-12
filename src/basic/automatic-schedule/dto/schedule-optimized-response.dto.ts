@@ -2,33 +2,33 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class PersonInScheduleDto {
   @ApiProperty({
-    description: 'Nome completo da pessoa',
+    description: 'Full name of the person',
     example: 'João Silva',
   })
-  nome: string;
+  name: string;
 
   @ApiProperty({
-    description: 'URL da foto da pessoa',
+    description: 'URL of the person photo',
     example: 'https://example.com/photos/person-123.jpg',
     nullable: true,
   })
   url: string | null;
 
   @ApiProperty({
-    description: 'Nome da função/responsabilidade da pessoa',
+    description: 'Name of the role/responsibility of the person',
     example: 'Médico',
   })
-  função: string;
+  role: string;
 
   @ApiProperty({
-    description: 'Indica se a pessoa esteve presente',
+    description: 'Indicates if the person was present',
     example: true,
     nullable: true,
   })
   present: boolean | null;
 
   @ApiProperty({
-    description: 'Status do membro na escala',
+    description: 'Status of the member in the schedule',
     enum: ['pending', 'accepted', 'rejected'],
     example: 'accepted',
   })
@@ -58,10 +58,17 @@ export class ScheduleOptimizedResponseDto {
   endDatetime: string;
 
   @ApiProperty({
-    description: 'Lista de pessoas na escala',
+    description: 'List of people in the schedule',
     type: [PersonInScheduleDto],
   })
-  pessoas: PersonInScheduleDto[];
+  people: PersonInScheduleDto[];
+
+  @ApiProperty({
+    description: 'List of groups associated with the schedule',
+    type: Array,
+    example: [{ id: 'uuid', name: 'Grupo A' }],
+  })
+  groups: Array<{ id: string; name: string }>;
 }
 
 export class PaginatedScheduleOptimizedResponseDto {

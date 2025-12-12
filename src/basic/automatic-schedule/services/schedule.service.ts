@@ -178,15 +178,18 @@ export class ScheduleService {
       throw new NotFoundException('Schedule not found');
     }
 
-    // Buscar detalhes completos
-    const details = await this.getScheduleDetails(scheduleId);
-    
-    // Buscar logs
-    const logs = await this.getLogsForSchedule(scheduleId);
+    // Buscar detalhes completos, logs e calcular participantsCount em paralelo
+    const [details, logs] = await Promise.all([
+      this.getScheduleDetails(scheduleId),
+      this.getLogsForSchedule(scheduleId),
+    ]);
+
+    // Calcular participantsCount a partir dos dados já carregados (evita query redundante)
+    const participantsCount = (details.members?.length || 0) + (details.assignments?.length || 0);
 
     return {
       ...this.mapToResponseDto(schedule),
-      participantsCount: await this.countParticipants(scheduleId),
+      participantsCount: participantsCount,
       logs: logs,
       ...details,
     };
@@ -679,58 +682,56 @@ export class ScheduleService {
   private async getScheduleDetails(scheduleId: string): Promise<any> {
     const supabaseClient = this.supabaseService.getRawClient();
 
-    // Buscar grupos com membros
-    const { data: groups } = await supabaseClient
-      .from('schedule_groups')
-      .select(
-        `
-        group_id,
-        area_groups(
-          id,
-          name,
-          members:area_group_members(
+    // Executar todas as queries em paralelo para otimizar performance
+    const [
+      { data: groups },
+      { data: teamData },
+      { data: assignments },
+      { data: members },
+      { data: comments, error: commentsError },
+    ] = await Promise.all([
+      supabaseClient
+        .from('schedule_groups')
+        .select(
+          `
+          group_id,
+          area_groups(
             id,
-            person:persons(id, full_name, email, photo_url),
-            responsibilities:area_group_member_responsibilities(
-              responsibility:responsibilities(id, name, description, image_url)
+            name,
+            members:area_group_members(
+              id,
+              person:persons(id, full_name, email, photo_url),
+              responsibilities:area_group_member_responsibilities(
+                responsibility:responsibilities(id, name, description, image_url)
+              )
             )
           )
+        `,
         )
-      `,
-      )
-      .eq('schedule_id', scheduleId);
-
-    // Buscar equipe
-    const { data: teamData } = await supabaseClient
-      .from('schedule_teams')
-      .select('team_id, area_teams(id, name)')
-      .eq('schedule_id', scheduleId)
-      .single();
-
-    // Buscar atribuições de equipe
-    const { data: assignments } = await supabaseClient
-      .from('schedule_team_assignments')
-      .select(
-        'id, person_id, team_role_id, persons(id, full_name, email, photo_url), area_team_roles(id, responsibility_id, quantity, priority, is_free, responsibilities(id, name, image_url))',
-      )
-      .eq('schedule_id', scheduleId);
-
-    // Buscar membros
-    const { data: members } = await supabaseClient
-      .from('schedule_members')
-      .select(
-        'id, person_id, responsibility_id, status, present, persons(id, full_name, email, photo_url), responsibilities(id, name, description, image_url)',
-      )
-      .eq('schedule_id', scheduleId);
-
-    // Buscar comentários
-    // Nota: author_id referencia auth.users(id), não persons(id)
-    // Não podemos fazer join direto com auth.users, então buscamos apenas os dados básicos
-    const { data: comments, error: commentsError } = await supabaseClient
-      .from('schedule_comments')
-      .select('id, content, author_id, created_at, updated_at')
-      .eq('schedule_id', scheduleId)
-      .order('created_at', { ascending: false });
+        .eq('schedule_id', scheduleId),
+      supabaseClient
+        .from('schedule_teams')
+        .select('team_id, area_teams(id, name)')
+        .eq('schedule_id', scheduleId)
+        .single(),
+      supabaseClient
+        .from('schedule_team_assignments')
+        .select(
+          'id, person_id, team_role_id, persons(id, full_name, email, photo_url), area_team_roles(id, responsibility_id, quantity, priority, is_free, responsibilities(id, name, image_url))',
+        )
+        .eq('schedule_id', scheduleId),
+      supabaseClient
+        .from('schedule_members')
+        .select(
+          'id, person_id, responsibility_id, status, present, persons(id, full_name, email, photo_url), responsibilities(id, name, description, image_url)',
+        )
+        .eq('schedule_id', scheduleId),
+      supabaseClient
+        .from('schedule_comments')
+        .select('id, content, author_id, created_at, updated_at')
+        .eq('schedule_id', scheduleId)
+        .order('created_at', { ascending: false }),
+    ]);
     
     // Se houver erro, logar mas não falhar (comentários são opcionais)
     if (commentsError) {
@@ -1169,17 +1170,21 @@ export class ScheduleService {
     // Buscar todas as pessoas relacionadas em batch
     const pessoasMap = await this.getPessoasMapOptimized(scheduleIds);
 
+    // Buscar todos os grupos relacionados em batch
+    const gruposMap = await this.getGruposMapOptimized(scheduleIds);
+
     // Montar resposta (remover personId temporário antes de retornar)
     const data: ScheduleOptimizedResponseDto[] = schedules.map((schedule: any) => {
-      const pessoas = (pessoasMap.get(schedule.id) || []).map((p: any) => {
-        const { personId, ...pessoa } = p;
-        return pessoa;
+      const people = (pessoasMap.get(schedule.id) || []).map((p: any) => {
+        const { personId, ...person } = p;
+        return person;
       });
       return {
         id: schedule.id,
         startDatetime: schedule.start_datetime,
         endDatetime: schedule.end_datetime,
-        pessoas: pessoas,
+        people: people,
+        groups: gruposMap.get(schedule.id) || [],
       };
     });
 
@@ -1239,9 +1244,9 @@ export class ScheduleService {
           const personIds = existing.map((p: any) => (p as any).personId).filter(Boolean);
           if (!personIds.includes(person.id)) {
             const pessoa: PersonInScheduleDto & { personId?: string } = {
-              nome: person.full_name || '',
+              name: person.full_name || '',
               url: person.photo_url || null,
-              função: responsibility?.name || '',
+              role: responsibility?.name || '',
               present: m.present ?? null,
               status: m.status || 'pending',
             };
@@ -1279,9 +1284,9 @@ export class ScheduleService {
           const personIds = existing.map((p: any) => (p as any).personId).filter(Boolean);
           if (!personIds.includes(person.id)) {
             const pessoa: PersonInScheduleDto & { personId?: string } = {
-              nome: person.full_name || '',
+              name: person.full_name || '',
               url: person.photo_url || null,
-              função: responsibility?.name || '',
+              role: responsibility?.name || '',
               present: null, // Team assignments não têm present/status direto
               status: 'accepted', // Assumir accepted para team assignments
             };
@@ -1347,9 +1352,9 @@ export class ScheduleService {
                   const personIds = existing.map((p: any) => (p as any).personId).filter(Boolean);
                   if (!personIds.includes(person.id)) {
                     const pessoa: PersonInScheduleDto & { personId?: string } = {
-                      nome: person.full_name || '',
+                      name: person.full_name || '',
                       url: person.photo_url || null,
-                      função: responsibility?.name || '',
+                      role: responsibility?.name || '',
                       present: null, // Membros de grupos não têm present/status direto na escala
                       status: 'accepted', // Assumir accepted para membros de grupos
                     };
@@ -1367,6 +1372,54 @@ export class ScheduleService {
     }
 
     return pessoasMap;
+  }
+
+  /**
+   * Busca todos os grupos relacionados às escalas de forma otimizada
+   * Retorna um mapa de schedule_id -> array de grupos (id, name)
+   */
+  private async getGruposMapOptimized(
+    scheduleIds: string[],
+  ): Promise<Map<string, Array<{ id: string; name: string }>>> {
+    if (scheduleIds.length === 0) {
+      return new Map();
+    }
+
+    const supabaseClient = this.supabaseService.getRawClient();
+    const gruposMap = new Map<string, Array<{ id: string; name: string }>>();
+
+    // Inicializar mapas vazios para cada schedule
+    scheduleIds.forEach((id) => {
+      gruposMap.set(id, []);
+    });
+
+    // Buscar grupos associados às schedules
+    const { data: scheduleGroups } = await supabaseClient
+      .from('schedule_groups')
+      .select('schedule_id, area_groups(id, name)')
+      .in('schedule_id', scheduleIds);
+
+    if (scheduleGroups && scheduleGroups.length > 0) {
+      scheduleGroups.forEach((sg: any) => {
+        const scheduleId = sg.schedule_id;
+        const group = sg.area_groups;
+
+        if (group && scheduleId) {
+          const existing = gruposMap.get(scheduleId) || [];
+          // Verificar se o grupo já foi adicionado (evitar duplicatas)
+          const groupIds = existing.map((g) => g.id);
+          if (!groupIds.includes(group.id)) {
+            existing.push({
+              id: group.id,
+              name: group.name || '',
+            });
+            gruposMap.set(scheduleId, existing);
+          }
+        }
+      });
+    }
+
+    return gruposMap;
   }
 }
 
