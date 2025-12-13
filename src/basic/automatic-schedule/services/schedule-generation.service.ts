@@ -662,6 +662,8 @@ export class ScheduleGenerationService {
             config.teamConfig!,
             date.start,
             date.end,
+            i, // scheduleIndex para rotação
+            schedules, // schedules anteriores para histórico
           );
         }
       }
@@ -926,10 +928,355 @@ export class ScheduleGenerationService {
     teamConfig: any,
     startDate: Date,
     endDate: Date,
+    scheduleIndex: number = 0,
+    previousSchedules: SchedulePreviewDto[] = [],
   ): Promise<any[]> {
-    // Implementação simplificada
-    // A lógica completa de atribuição será implementada depois
-    return [];
+    const supabaseClient = this.supabaseService.getRawClient();
+    const assignments: any[] = [];
+
+    // 1. Buscar roles da equipe ordenadas por prioridade
+    const { data: teamRoles, error: rolesError } = await supabaseClient
+      .from('area_team_roles')
+      .select('id, responsibility_id, quantity, priority, is_free, responsibility:responsibilities(id, name, image_url)')
+      .eq('team_id', teamConfig.teamId)
+      .order('priority', { ascending: true });
+
+    if (rolesError || !teamRoles || teamRoles.length === 0) {
+      return [];
+    }
+
+    // 2. Buscar pessoas fixas atribuídas a roles
+    const roleIds = teamRoles.map((r: any) => r.id);
+    const { data: fixedPersons } = await supabaseClient
+      .from('area_team_role_fixed_persons')
+      .select('team_role_id, person_id')
+      .in('team_role_id', roleIds);
+
+    const fixedPersonsMap = new Map<string, string[]>();
+    if (fixedPersons) {
+      fixedPersons.forEach((fp: any) => {
+        const current = fixedPersonsMap.get(fp.team_role_id) || [];
+        current.push(fp.person_id);
+        fixedPersonsMap.set(fp.team_role_id, current);
+      });
+    }
+
+    // 3. Buscar participantes baseado na configuração
+    let participants: any[] = [];
+    
+    if (teamConfig.participantSelection === 'all') {
+      // Buscar todas as pessoas da área
+      const { data: personAreas, error: personAreasError } = await supabaseClient
+        .from('person_areas')
+        .select('person_id, person:persons(id, full_name, email, photo_url)')
+        .eq('scheduled_area_id', scheduledAreaId);
+
+      if (personAreasError) {
+        console.error('Error fetching person_areas:', personAreasError);
+      }
+
+      if (personAreas) {
+        participants = personAreas.map((pa: any) => ({
+          personId: pa.person_id,
+          person: pa.person,
+        }));
+      }
+    } else if (teamConfig.participantSelection === 'by_group' && teamConfig.selectedGroupIds?.length > 0) {
+      // Buscar pessoas dos grupos selecionados
+      const { data: groupMembers, error: groupMembersError } = await supabaseClient
+        .from('area_group_members')
+        .select('person_id, persons(id, full_name, email, photo_url)')
+        .in('group_id', teamConfig.selectedGroupIds);
+
+      if (groupMembersError) {
+        console.error('Error fetching area_group_members:', groupMembersError);
+      }
+
+      if (groupMembers) {
+        const personMap = new Map();
+        groupMembers.forEach((gm: any) => {
+          if (!personMap.has(gm.person_id)) {
+            personMap.set(gm.person_id, {
+              personId: gm.person_id,
+              person: gm.persons, // Mudança: usar 'persons' em vez de 'person'
+            });
+          }
+        });
+        participants = Array.from(personMap.values());
+      }
+    } else if (teamConfig.participantSelection === 'individual' && teamConfig.selectedPersonIds?.length > 0) {
+      // Buscar pessoas selecionadas individualmente
+      const { data: persons, error: personsError } = await supabaseClient
+        .from('persons')
+        .select('id, full_name, email, photo_url')
+        .in('id', teamConfig.selectedPersonIds);
+
+      if (personsError) {
+        console.error('Error fetching persons:', personsError);
+      }
+
+      if (persons) {
+        participants = persons.map((p: any) => ({
+          personId: p.id,
+          person: p,
+        }));
+      }
+    } else if (teamConfig.participantSelection === 'all_with_exclusions') {
+      // Buscar todas as pessoas da área
+      const { data: personAreas, error: personAreasError } = await supabaseClient
+        .from('person_areas')
+        .select('person_id, person:persons(id, full_name, email, photo_url)')
+        .eq('scheduled_area_id', scheduledAreaId);
+
+      if (personAreasError) {
+        console.error('Error fetching person_areas:', personAreasError);
+      }
+
+      if (personAreas) {
+        const excludedSet = new Set(teamConfig.excludedPersonIds || []);
+        participants = personAreas
+          .filter((pa: any) => !excludedSet.has(pa.person_id))
+          .map((pa: any) => ({
+            personId: pa.person_id,
+            person: pa.person,
+          }));
+      }
+    }
+
+    // 4. Filtrar por ausências se necessário
+    if (teamConfig.considerAbsences && participants.length > 0) {
+      const participantIds = participants.map((p: any) => p.personId);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      const { data: absences } = await supabaseClient
+        .from('scheduled_absences')
+        .select('person_id')
+        .in('person_id', participantIds)
+        .lte('start_date', endDateStr)
+        .gte('end_date', startDateStr);
+
+      const absentPersonIds = new Set((absences || []).map((a: any) => a.person_id));
+      participants = participants.filter((p: any) => !absentPersonIds.has(p.personId));
+    }
+
+    // 5. Buscar responsabilidades dos participantes se necessário
+    const participantResponsibilitiesMap = new Map<string, string[]>();
+    if (teamConfig.requireResponsibilities && participants.length > 0) {
+      const participantIds = participants.map((p: any) => p.personId);
+      
+      // Buscar person_areas primeiro para obter os IDs
+      const { data: personAreaData, error: personAreaError } = await supabaseClient
+        .from('person_areas')
+        .select('id, person_id')
+        .eq('scheduled_area_id', scheduledAreaId)
+        .in('person_id', participantIds);
+
+      if (personAreaError) {
+        console.error('Error fetching person_areas for responsibilities:', personAreaError);
+      }
+
+      if (personAreaData && personAreaData.length > 0) {
+        const personAreaIds = personAreaData.map((pa: any) => pa.id);
+        const personIdToPersonAreaId = new Map<string, string>();
+        personAreaData.forEach((pa: any) => {
+          personIdToPersonAreaId.set(pa.person_id, pa.id);
+        });
+
+        // Buscar responsabilidades usando person_area_id
+        const { data: responsibilitiesData, error: responsibilitiesError } = await supabaseClient
+          .from('person_area_responsibilities')
+          .select('person_area_id, responsibility_id')
+          .in('person_area_id', personAreaIds);
+
+        if (responsibilitiesError) {
+          console.error('Error fetching person_area_responsibilities:', responsibilitiesError);
+        }
+
+        if (responsibilitiesData) {
+          // Agrupar responsabilidades por person_id
+          responsibilitiesData.forEach((r: any) => {
+            const personAreaId = r.person_area_id;
+            // Encontrar person_id correspondente
+            for (const [personId, paId] of personIdToPersonAreaId.entries()) {
+              if (paId === personAreaId) {
+                const current = participantResponsibilitiesMap.get(personId) || [];
+                current.push(r.responsibility_id);
+                participantResponsibilitiesMap.set(personId, current);
+                break;
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // 6. Construir histórico de atribuições anteriores para balanceamento
+    const assignmentHistory = new Map<string, Map<string, number>>(); // Map<roleId, Map<personId, count>>
+    
+    // Inicializar histórico para todos os roles
+    teamRoles.forEach((role: any) => {
+      assignmentHistory.set(role.id, new Map<string, number>());
+    });
+
+    // Contar atribuições anteriores
+    previousSchedules.forEach((prevSchedule: any) => {
+      if (prevSchedule.assignments && Array.isArray(prevSchedule.assignments)) {
+        prevSchedule.assignments.forEach((assignment: any) => {
+          if (assignment.personId && assignment.roleId) {
+            const roleHistory = assignmentHistory.get(assignment.roleId);
+            if (roleHistory) {
+              const currentCount = roleHistory.get(assignment.personId) || 0;
+              roleHistory.set(assignment.personId, currentCount + 1);
+            }
+          }
+        });
+      }
+    });
+
+    // 7. Atribuir pessoas aos roles com rotação balanceada
+    const usedPersonIds = new Set<string>();
+    const availableParticipants = [...participants];
+
+    for (const role of teamRoles) {
+      const roleId = role.id;
+      const responsibilityId = role.responsibility_id;
+      const quantity = role.quantity || 1;
+      const fixedPersonIds = fixedPersonsMap.get(roleId) || [];
+      const roleHistory = assignmentHistory.get(roleId) || new Map<string, number>();
+
+      // Primeiro, atribuir pessoas fixas
+      for (const fixedPersonId of fixedPersonIds) {
+        if (quantity > 0) {
+          const fixedPerson = participants.find((p: any) => p.personId === fixedPersonId);
+          if (fixedPerson) {
+            const responsibility = Array.isArray(role.responsibility) ? role.responsibility[0] : role.responsibility;
+            assignments.push({
+              personId: fixedPersonId,
+              personName: fixedPerson.person?.full_name || '[Não atribuído]',
+              roleId: roleId,
+              roleName: responsibility?.name || '[Sem nome]',
+            });
+            usedPersonIds.add(fixedPersonId);
+            // Não decrementar quantity para pessoas fixas, elas são adicionais
+          }
+        }
+      }
+
+      // Depois, preencher as vagas restantes com rotação balanceada
+      let assignedCount = fixedPersonIds.length;
+      
+      // Filtrar participantes elegíveis para este role
+      const eligibleParticipants = availableParticipants.filter((p: any) => {
+        if (usedPersonIds.has(p.personId)) return false;
+        if (teamConfig.requireResponsibilities) {
+          const personResponsibilities = participantResponsibilitiesMap.get(p.personId) || [];
+          return personResponsibilities.includes(responsibilityId);
+        }
+        return true;
+      });
+
+      // Ordenar por histórico de atribuições (menos atribuições primeiro)
+      // Em caso de empate, usar rotação baseada no scheduleIndex
+      // Primeiro, criar um mapa de índices originais para rotação estável
+      const originalIndices = new Map<string, number>();
+      eligibleParticipants.forEach((p: any, index: number) => {
+        originalIndices.set(p.personId, index);
+      });
+
+      eligibleParticipants.sort((a: any, b: any) => {
+        const countA = roleHistory.get(a.personId) || 0;
+        const countB = roleHistory.get(b.personId) || 0;
+        if (countA !== countB) {
+          return countA - countB; // Menor contagem primeiro
+        }
+        // Em caso de empate, usar rotação baseada no scheduleIndex
+        const indexA = originalIndices.get(a.personId) || 0;
+        const indexB = originalIndices.get(b.personId) || 0;
+        const rotatedIndexA = (indexA + scheduleIndex) % eligibleParticipants.length;
+        const rotatedIndexB = (indexB + scheduleIndex) % eligibleParticipants.length;
+        return rotatedIndexA - rotatedIndexB;
+      });
+
+      // Atribuir pessoas ordenadas
+      for (const participant of eligibleParticipants) {
+        if (assignedCount >= quantity) break;
+
+        const responsibility = Array.isArray(role.responsibility) ? role.responsibility[0] : role.responsibility;
+
+        assignments.push({
+          personId: participant.personId,
+          personName: participant.person?.full_name || '[Não atribuído]',
+          roleId: roleId,
+          roleName: responsibility?.name || '[Sem nome]',
+        });
+        usedPersonIds.add(participant.personId);
+        assignedCount++;
+      }
+
+      // Se não há pessoas suficientes e repeatPersonsWhenInsufficient está habilitado
+      if (assignedCount < quantity && teamConfig.repeatPersonsWhenInsufficient) {
+        // Reutilizar pessoas já atribuídas, mas com rotação
+        const reusableParticipants = eligibleParticipants.length > 0 
+          ? eligibleParticipants 
+          : availableParticipants.filter((p: any) => {
+              if (teamConfig.requireResponsibilities) {
+                const personResponsibilities = participantResponsibilitiesMap.get(p.personId) || [];
+                return personResponsibilities.includes(responsibilityId);
+              }
+              return true;
+            });
+
+        if (reusableParticipants.length > 0) {
+          // Ordenar por histórico também para reutilização
+          const reusableOriginalIndices = new Map<string, number>();
+          reusableParticipants.forEach((p: any, index: number) => {
+            reusableOriginalIndices.set(p.personId, index);
+          });
+
+          reusableParticipants.sort((a: any, b: any) => {
+            const countA = roleHistory.get(a.personId) || 0;
+            const countB = roleHistory.get(b.personId) || 0;
+            if (countA !== countB) {
+              return countA - countB;
+            }
+            const indexA = reusableOriginalIndices.get(a.personId) || 0;
+            const indexB = reusableOriginalIndices.get(b.personId) || 0;
+            const rotatedIndexA = (indexA + scheduleIndex) % reusableParticipants.length;
+            const rotatedIndexB = (indexB + scheduleIndex) % reusableParticipants.length;
+            return rotatedIndexA - rotatedIndexB;
+          });
+
+          let reuseIndex = 0;
+          while (assignedCount < quantity && reusableParticipants.length > 0) {
+            const participant = reusableParticipants[reuseIndex % reusableParticipants.length];
+            const responsibility = Array.isArray(role.responsibility) ? role.responsibility[0] : role.responsibility;
+            assignments.push({
+              personId: participant.personId,
+              personName: participant.person?.full_name || '[Não atribuído]',
+              roleId: roleId,
+              roleName: responsibility?.name || '[Sem nome]',
+            });
+            assignedCount++;
+            reuseIndex++;
+          }
+        }
+      }
+
+      // Se ainda faltam vagas, adicionar placeholders
+      while (assignedCount < quantity) {
+        const responsibility = Array.isArray(role.responsibility) ? role.responsibility[0] : role.responsibility;
+        assignments.push({
+          personId: '',
+          personName: '[Não atribuído]',
+          roleId: roleId,
+          roleName: responsibility?.name || '[Sem nome]',
+        });
+        assignedCount++;
+      }
+    }
+
+    return assignments;
   }
 
   private calculateSummary(schedules: SchedulePreviewDto[]): GenerationSummaryDto {
