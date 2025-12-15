@@ -1065,48 +1065,99 @@ export class ScheduleGenerationService {
     if (teamConfig.requireResponsibilities && participants.length > 0) {
       const participantIds = participants.map((p: any) => p.personId);
       
-      // Buscar person_areas primeiro para obter os IDs
-      const { data: personAreaData, error: personAreaError } = await supabaseClient
-        .from('person_areas')
-        .select('id, person_id')
-        .eq('scheduled_area_id', scheduledAreaId)
-        .in('person_id', participantIds);
+      // Modo "Por Grupo": usar APENAS responsabilidades do grupo
+      if (teamConfig.participantSelection === 'by_group' && teamConfig.selectedGroupIds?.length > 0) {
+        // Primeiro buscar os membros do grupo que estão nos participantes
+        const { data: groupMembers, error: groupMembersError } = await supabaseClient
+          .from('area_group_members')
+          .select('id, person_id, group_id')
+          .in('group_id', teamConfig.selectedGroupIds)
+          .in('person_id', participantIds);
 
-      if (personAreaError) {
-        console.error('Error fetching person_areas for responsibilities:', personAreaError);
-      }
-
-      if (personAreaData && personAreaData.length > 0) {
-        const personAreaIds = personAreaData.map((pa: any) => pa.id);
-        const personIdToPersonAreaId = new Map<string, string>();
-        personAreaData.forEach((pa: any) => {
-          personIdToPersonAreaId.set(pa.person_id, pa.id);
-        });
-
-        // Buscar responsabilidades usando person_area_id
-        const { data: responsibilitiesData, error: responsibilitiesError } = await supabaseClient
-          .from('person_area_responsibilities')
-          .select('person_area_id, responsibility_id')
-          .in('person_area_id', personAreaIds);
-
-        if (responsibilitiesError) {
-          console.error('Error fetching person_area_responsibilities:', responsibilitiesError);
+        if (groupMembersError) {
+          console.error('Error fetching area_group_members for responsibilities:', groupMembersError);
         }
 
-        if (responsibilitiesData) {
-          // Agrupar responsabilidades por person_id
-          responsibilitiesData.forEach((r: any) => {
-            const personAreaId = r.person_area_id;
-            // Encontrar person_id correspondente
-            for (const [personId, paId] of personIdToPersonAreaId.entries()) {
-              if (paId === personAreaId) {
-                const current = participantResponsibilitiesMap.get(personId) || [];
-                current.push(r.responsibility_id);
-                participantResponsibilitiesMap.set(personId, current);
-                break;
-              }
-            }
+        if (groupMembers && groupMembers.length > 0) {
+          const groupMemberIds = groupMembers.map((gm: any) => gm.id);
+          
+          // Buscar responsabilidades dos membros do grupo
+          const { data: groupMemberResponsibilities, error: groupMemberError } = await supabaseClient
+            .from('area_group_member_responsibilities')
+            .select('group_member_id, responsibility_id')
+            .in('group_member_id', groupMemberIds);
+
+          if (groupMemberError) {
+            console.error('Error fetching area_group_member_responsibilities:', groupMemberError);
+          }
+
+          // Criar mapa de group_member_id -> person_id
+          const groupMemberIdToPersonId = new Map<string, string>();
+          groupMembers.forEach((gm: any) => {
+            groupMemberIdToPersonId.set(gm.id, gm.person_id);
           });
+
+          // Agrupar responsabilidades por person_id
+          if (groupMemberResponsibilities) {
+            groupMemberResponsibilities.forEach((r: any) => {
+              const personId = groupMemberIdToPersonId.get(r.group_member_id);
+              if (personId) {
+                const current = participantResponsibilitiesMap.get(personId) || [];
+                if (!current.includes(r.responsibility_id)) {
+                  current.push(r.responsibility_id);
+                  participantResponsibilitiesMap.set(personId, current);
+                }
+              }
+            });
+          }
+        }
+      } else {
+        // Modo "TODOS" ou "Individual": usar responsabilidades da área
+        // Buscar person_areas primeiro para obter os IDs
+        const { data: personAreaData, error: personAreaError } = await supabaseClient
+          .from('person_areas')
+          .select('id, person_id')
+          .eq('scheduled_area_id', scheduledAreaId)
+          .in('person_id', participantIds);
+
+        if (personAreaError) {
+          console.error('Error fetching person_areas for responsibilities:', personAreaError);
+        }
+
+        if (personAreaData && personAreaData.length > 0) {
+          const personAreaIds = personAreaData.map((pa: any) => pa.id);
+          const personIdToPersonAreaId = new Map<string, string>();
+          personAreaData.forEach((pa: any) => {
+            personIdToPersonAreaId.set(pa.person_id, pa.id);
+          });
+
+          // Buscar responsabilidades usando person_area_id
+          const { data: responsibilitiesData, error: responsibilitiesError } = await supabaseClient
+            .from('person_area_responsibilities')
+            .select('person_area_id, responsibility_id')
+            .in('person_area_id', personAreaIds);
+
+          if (responsibilitiesError) {
+            console.error('Error fetching person_area_responsibilities:', responsibilitiesError);
+          }
+
+          if (responsibilitiesData) {
+            // Agrupar responsabilidades por person_id
+            responsibilitiesData.forEach((r: any) => {
+              const personAreaId = r.person_area_id;
+              // Encontrar person_id correspondente
+              for (const [personId, paId] of personIdToPersonAreaId.entries()) {
+                if (paId === personAreaId) {
+                  const current = participantResponsibilitiesMap.get(personId) || [];
+                  if (!current.includes(r.responsibility_id)) {
+                    current.push(r.responsibility_id);
+                    participantResponsibilitiesMap.set(personId, current);
+                  }
+                  break;
+                }
+              }
+            });
+          }
         }
       }
     }
@@ -1251,6 +1302,7 @@ export class ScheduleGenerationService {
           while (assignedCount < quantity && reusableParticipants.length > 0) {
             const participant = reusableParticipants[reuseIndex % reusableParticipants.length];
             const responsibility = Array.isArray(role.responsibility) ? role.responsibility[0] : role.responsibility;
+            
             assignments.push({
               personId: participant.personId,
               personName: participant.person?.full_name || '[Não atribuído]',
