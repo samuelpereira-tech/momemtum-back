@@ -313,8 +313,7 @@ export class ScheduleController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete schedule',
-    description:
-      'Deletes a schedule. Only manual schedules can be deleted. Automatically generated schedules should be deleted through their schedule generation.',
+    description: 'Deletes a schedule. Both manual and automatically generated schedules can be deleted.',
   })
   @ApiParam({
     name: 'scheduledAreaId',
@@ -332,7 +331,6 @@ export class ScheduleController {
     status: 204,
     description: 'Schedule deleted successfully',
   })
-  @ApiResponse({ status: 400, description: 'Cannot delete automatically generated schedule' })
   @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
   @ApiResponse({ status: 404, description: 'Schedule or scheduled area not found' })
   async remove(

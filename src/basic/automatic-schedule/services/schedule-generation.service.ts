@@ -120,14 +120,10 @@ export class ScheduleGenerationService {
 
     // Reaproveitar os dados do preview para construir a resposta final
     // Isso evita buscar novamente do banco os dados que já temos processados
-    // Buscar apenas os IDs dos assignments criados para completar os dados
-    const scheduleIds = createdSchedules.map((s) => s.id);
-    const assignmentsMap = await this.getAssignmentsMap(scheduleIds);
-
     const schedulesWithDetails = this.mapPreviewToScheduleDetails(
       preview.schedules,
       createdSchedules,
-      assignmentsMap,
+      new Map(), // Assignments agora são schedule_members, não precisamos mais buscar separadamente
     );
 
     const response = this.mapToResponseDto(generation);
@@ -170,20 +166,6 @@ export class ScheduleGenerationService {
         team:schedule_teams(
           team_id,
           area_teams(id, name)
-        ),
-        assignments:schedule_team_assignments(
-          id,
-          person_id,
-          team_role_id,
-          persons(id, full_name, email, photo_url),
-          area_team_roles(
-            id,
-            responsibility_id,
-            quantity,
-            priority,
-            is_free,
-            responsibilities(id, name, image_url)
-          )
         )
       `,
       )
@@ -258,36 +240,6 @@ export class ScheduleGenerationService {
           }
         : null;
 
-    // Processar atribuições
-    const processedAssignments = ((schedule.assignments || []) as any[]).map(
-      (a: any) => ({
-        id: a.id,
-        personId: a.person_id,
-        person: a.persons
-          ? {
-              id: a.persons.id,
-              fullName: a.persons.full_name,
-              email: a.persons.email,
-              photoUrl: a.persons.photo_url,
-            }
-          : null,
-        teamRoleId: a.team_role_id,
-        teamRole: a.area_team_roles
-          ? {
-              id: a.area_team_roles.id,
-              responsibilityId: a.area_team_roles.responsibility_id,
-              responsibility: a.area_team_roles.responsibilities
-                ? {
-                    id: a.area_team_roles.responsibilities.id,
-                    name: a.area_team_roles.responsibilities.name,
-                    imageUrl: a.area_team_roles.responsibilities.image_url,
-                  }
-                : null,
-            }
-          : null,
-      }),
-    );
-
     return {
       id: schedule.id,
       scheduleGenerationId: schedule.schedule_generation_id,
@@ -298,46 +250,12 @@ export class ScheduleGenerationService {
       status: schedule.status,
       groups: processedGroups,
       team: processedTeam,
-      assignments: processedAssignments,
+      assignments: [], // Assignments agora são schedule_members
       createdAt: schedule.created_at,
       updatedAt: schedule.updated_at,
     };
   }
 
-  /**
-   * Busca os assignments criados para completar os dados
-   */
-  private async getAssignmentsMap(
-    scheduleIds: string[],
-  ): Promise<Map<string, any[]>> {
-    if (scheduleIds.length === 0) {
-      return new Map();
-    }
-
-    const supabaseClient = this.supabaseService.getRawClient();
-    const { data: assignments } = await supabaseClient
-      .from('schedule_team_assignments')
-      .select(
-        'id, schedule_id, person_id, team_role_id, persons(id, full_name, email, photo_url), area_team_roles(id, responsibility_id, responsibilities(id, name, image_url))',
-      )
-      .in('schedule_id', scheduleIds);
-
-    if (!assignments) {
-      return new Map();
-    }
-
-    // Agrupar por schedule_id
-    const assignmentsMap = new Map<string, any[]>();
-    assignments.forEach((a: any) => {
-      const scheduleId = a.schedule_id;
-      if (!assignmentsMap.has(scheduleId)) {
-        assignmentsMap.set(scheduleId, []);
-      }
-      assignmentsMap.get(scheduleId)!.push(a);
-    });
-
-    return assignmentsMap;
-  }
 
   /**
    * Mapeia os dados do preview para o formato de detalhes de schedule
@@ -346,7 +264,7 @@ export class ScheduleGenerationService {
   private mapPreviewToScheduleDetails(
     previewSchedules: SchedulePreviewDto[],
     createdSchedules: any[],
-    assignmentsMap: Map<string, any[]>,
+    _assignmentsMap: Map<string, any[]>, // Não usado mais, assignments são schedule_members
   ): any[] {
     // Normalizar datas para comparação
     const normalizeDateTime = (dt: string) => {
@@ -395,61 +313,8 @@ export class ScheduleGenerationService {
             }
           : null;
 
-        // Converter assignments - usar dados do banco se disponível, senão usar preview
-        const createdAssignments = assignmentsMap.get(createdSchedule.id) || [];
-        const assignments = createdAssignments.length > 0
-          ? createdAssignments.map((a: any) => ({
-              id: a.id,
-              personId: a.person_id,
-              person: a.persons
-                ? {
-                    id: a.persons.id,
-                    fullName: a.persons.full_name,
-                    email: a.persons.email,
-                    photoUrl: a.persons.photo_url,
-                  }
-                : null,
-              teamRoleId: a.team_role_id,
-              teamRole: a.area_team_roles
-                ? {
-                    id: a.area_team_roles.id,
-                    responsibilityId: a.area_team_roles.responsibility_id,
-                    responsibility: a.area_team_roles.responsibilities
-                      ? {
-                          id: a.area_team_roles.responsibilities.id,
-                          name: a.area_team_roles.responsibilities.name,
-                          imageUrl: a.area_team_roles.responsibilities.image_url,
-                        }
-                      : null,
-                  }
-                : null,
-            }))
-          : (preview.assignments || []).map((a) => ({
-              id: '',
-              personId: a.personId,
-              person: a.personId
-                ? {
-                    id: a.personId,
-                    fullName: a.personName,
-                    email: '',
-                    photoUrl: null,
-                  }
-                : null,
-              teamRoleId: a.roleId,
-              teamRole: a.roleId
-                ? {
-                    id: a.roleId,
-                    responsibilityId: '',
-                    responsibility: a.roleName
-                      ? {
-                          id: '',
-                          name: a.roleName,
-                          imageUrl: null,
-                        }
-                      : null,
-                  }
-                : null,
-            }));
+        // Assignments agora são schedule_members, retornar array vazio
+        const assignments: any[] = [];
 
         return {
           id: createdSchedule.id,
@@ -1568,6 +1433,7 @@ export class ScheduleGenerationService {
         preview.assignments
           .filter((a) => a && a.personId && a.roleId)
           .forEach((a) => {
+            // Adicionar à lista de assignments para buscar responsibility_id depois
             scheduleAssignmentsToInsert.push({
               schedule_id: schedule.id,
               person_id: a.personId,
@@ -1600,18 +1466,57 @@ export class ScheduleGenerationService {
       }
     }
 
+    // 3.5. Buscar responsibility_id para cada team_role_id e criar schedule_members
     if (scheduleAssignmentsToInsert.length > 0) {
-      const { error: assignmentsError } = await supabaseClient
-        .from('schedule_team_assignments')
-        .insert(scheduleAssignmentsToInsert);
+      // Buscar todos os team_role_ids únicos
+      const teamRoleIds = Array.from(
+        new Set(scheduleAssignmentsToInsert.map((a) => a.team_role_id))
+      );
 
-      if (assignmentsError) {
-        console.error('Error creating schedule_team_assignments:', assignmentsError);
-        handleSupabaseError(assignmentsError);
+      // Buscar responsibility_id para cada team_role_id
+      const { data: teamRoles, error: teamRolesError } = await supabaseClient
+        .from('area_team_roles')
+        .select('id, responsibility_id')
+        .in('id', teamRoleIds);
+
+      if (teamRolesError) {
+        console.error('Error fetching team roles:', teamRolesError);
+        handleSupabaseError(teamRolesError);
       }
+
+      // Criar mapa de team_role_id -> responsibility_id
+      const teamRoleToResponsibility = new Map<string, string>();
+      (teamRoles || []).forEach((tr: any) => {
+        teamRoleToResponsibility.set(tr.id, tr.responsibility_id);
+      });
+
+      // Converter assignments para schedule_members
+      scheduleAssignmentsToInsert.forEach((assignment) => {
+        const responsibilityId = teamRoleToResponsibility.get(assignment.team_role_id);
+        if (responsibilityId) {
+          // Verificar se a pessoa já foi adicionada para esta schedule (evitar duplicatas)
+          const alreadyAdded = scheduleMembersToInsert.some(
+            (sm) =>
+              sm.schedule_id === assignment.schedule_id &&
+              sm.person_id === assignment.person_id,
+          );
+
+          if (!alreadyAdded) {
+            scheduleMembersToInsert.push({
+              schedule_id: assignment.schedule_id,
+              person_id: assignment.person_id,
+              responsibility_id: responsibilityId,
+            });
+          }
+        } else {
+          console.warn(
+            `No responsibility_id found for team_role_id: ${assignment.team_role_id}`,
+          );
+        }
+      });
     }
 
-    // 4. Batch insert de schedule_members (membros dos grupos)
+    // 4. Batch insert de schedule_members (membros dos grupos e assignments)
     if (scheduleMembersToInsert.length > 0) {
       const { error: membersError } = await supabaseClient
         .from('schedule_members')

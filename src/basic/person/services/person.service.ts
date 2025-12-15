@@ -391,23 +391,10 @@ export class PersonService {
       handleSupabaseError(scheduleMembersError);
     }
 
-    // Buscar IDs de escalas onde a pessoa está como parte de uma equipe (schedule_team_assignments)
-    const { data: teamAssignmentIds, error: teamAssignmentsError } = await supabaseClient
-      .from('schedule_team_assignments')
-      .select('schedule_id')
-      .eq('person_id', personId);
-
-    if (teamAssignmentsError) {
-      handleSupabaseError(teamAssignmentsError);
-    }
-
     // Combinar todos os IDs de escalas únicos
     const allScheduleIds = new Set<string>();
     if (scheduleMemberIds) {
       scheduleMemberIds.forEach((item: any) => allScheduleIds.add(item.schedule_id));
-    }
-    if (teamAssignmentIds) {
-      teamAssignmentIds.forEach((item: any) => allScheduleIds.add(item.schedule_id));
     }
 
     // Buscar todas as escalas de uma vez

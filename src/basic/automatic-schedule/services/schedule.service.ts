@@ -96,9 +96,7 @@ export class ScheduleService {
 
     // Filtros por person, group ou team requerem joins
     if (filters?.personId) {
-      query = query.or(
-        `schedule_members.person_id.eq.${filters.personId},schedule_team_assignments.person_id.eq.${filters.personId}`,
-      );
+      query = query.eq('schedule_members.person_id', filters.personId);
     }
 
     if (filters?.groupId) {
@@ -185,7 +183,7 @@ export class ScheduleService {
     ]);
 
     // Calcular participantsCount a partir dos dados já carregados (evita query redundante)
-    const participantsCount = (details.members?.length || 0) + (details.assignments?.length || 0);
+    const participantsCount = details.members?.length || 0;
 
     return {
       ...this.mapToResponseDto(schedule),
@@ -361,14 +359,8 @@ export class ScheduleService {
   async remove(scheduledAreaId: string, scheduleId: string): Promise<void> {
     const supabaseClient = this.supabaseService.getRawClient();
 
-    // Verificar se existe e se é manual
-    const existing = await this.findOne(scheduledAreaId, scheduleId);
-
-    if (existing.scheduleGenerationId) {
-      throw new BadRequestException(
-        'Cannot delete automatically generated schedule. Delete the schedule generation instead.',
-      );
-    }
+    // Verificar se existe
+    await this.findOne(scheduledAreaId, scheduleId);
 
     const { error } = await supabaseClient
       .from(this.tableName)
@@ -514,71 +506,90 @@ export class ScheduleService {
   ): Promise<void> {
     const supabaseClient = this.supabaseService.getRawClient();
 
-    // Buscar atribuições existentes
-    const { data: existingAssignments } = await supabaseClient
-      .from('schedule_team_assignments')
-      .select('person_id, team_role_id')
+    // Buscar membros existentes
+    const { data: existingMembers } = await supabaseClient
+      .from('schedule_members')
+      .select('person_id')
       .eq('schedule_id', scheduleId);
 
-    const existingSet = new Set(
-      (existingAssignments || []).map((a: any) => `${a.person_id}-${a.team_role_id}`)
+    const existingPersonIds = new Set(
+      (existingMembers || []).map((m: any) => m.person_id)
     );
 
-    // Identificar novas atribuições
+    // Buscar responsibility_id para cada team_role_id
+    const teamRoleIds = assignments.map((a) => a.teamRoleId);
+    const { data: teamRoles } = await supabaseClient
+      .from('area_team_roles')
+      .select('id, responsibility_id')
+      .in('id', teamRoleIds);
+
+    const teamRoleToResponsibility = new Map<string, string>();
+    (teamRoles || []).forEach((tr: any) => {
+      teamRoleToResponsibility.set(tr.id, tr.responsibility_id);
+    });
+
+    // Identificar novas atribuições (pessoas que não estão ainda como membros)
     const newAssignments = assignments.filter(
-      (a) => !existingSet.has(`${a.personId}-${a.teamRoleId}`)
+      (a) => !existingPersonIds.has(a.personId)
     );
 
-    // Identificar atribuições removidas
-    const assignmentSet = new Set(
-      assignments.map((a) => `${a.personId}-${a.teamRoleId}`)
-    );
-    const removedAssignments = (existingAssignments || []).filter(
-      (a: any) => !assignmentSet.has(`${a.person_id}-${a.team_role_id}`)
+    // Identificar atribuições removidas (pessoas que estão como membros mas não estão mais na lista)
+    const assignmentPersonIds = new Set(assignments.map((a) => a.personId));
+    const removedAssignments = (existingMembers || []).filter(
+      (m: any) => !assignmentPersonIds.has(m.person_id)
     );
 
     // Criar logs para remoções
     for (const removed of removedAssignments) {
       await this.createLog(scheduleId, null, removed.person_id, 'team_member_removed', {
         personId: removed.person_id,
-        teamRoleId: removed.team_role_id,
       }, null, changedBy);
     }
 
-    // Remover atribuições antigas que não estão mais na lista
+    // Remover membros antigos que não estão mais na lista
     if (removedAssignments.length > 0) {
       const { error: deleteError } = await supabaseClient
-        .from('schedule_team_assignments')
+        .from('schedule_members')
         .delete()
         .eq('schedule_id', scheduleId)
-        .in('person_id', removedAssignments.map((a: any) => a.person_id))
-        .in('team_role_id', removedAssignments.map((a: any) => a.team_role_id));
+        .in('person_id', removedAssignments.map((m: any) => m.person_id));
 
       if (deleteError) {
         handleSupabaseError(deleteError);
       }
     }
 
-    // Inserir novas atribuições
+    // Inserir novos membros
     if (newAssignments.length > 0) {
-      const { error } = await supabaseClient.from('schedule_team_assignments').insert(
-        newAssignments.map((assignment) => ({
-          schedule_id: scheduleId,
-          person_id: assignment.personId,
-          team_role_id: assignment.teamRoleId,
-        })),
-      );
+      const membersToInsert = newAssignments
+        .map((assignment) => {
+          const responsibilityId = teamRoleToResponsibility.get(assignment.teamRoleId);
+          if (!responsibilityId) {
+            console.warn(`No responsibility_id found for team_role_id: ${assignment.teamRoleId}`);
+            return null;
+          }
+          return {
+            schedule_id: scheduleId,
+            person_id: assignment.personId,
+            responsibility_id: responsibilityId,
+          };
+        })
+        .filter((m) => m !== null);
 
-      if (error) {
-        handleSupabaseError(error);
-      }
+      if (membersToInsert.length > 0) {
+        const { error } = await supabaseClient.from('schedule_members').insert(membersToInsert);
 
-      // Criar logs para novas atribuições
-      for (const assignment of newAssignments) {
-        await this.createLog(scheduleId, null, assignment.personId, 'team_member_added', null, {
-          personId: assignment.personId,
-          teamRoleId: assignment.teamRoleId,
-        }, changedBy);
+        if (error) {
+          handleSupabaseError(error);
+        }
+
+        // Criar logs para novas atribuições
+        for (const assignment of newAssignments) {
+          await this.createLog(scheduleId, null, assignment.personId, 'team_member_added', null, {
+            personId: assignment.personId,
+            teamRoleId: assignment.teamRoleId,
+          }, changedBy);
+        }
       }
     }
   }
@@ -592,16 +603,9 @@ export class ScheduleService {
       .select('*', { count: 'exact', head: true })
       .eq('schedule_id', scheduleId);
 
-    // Contar atribuições de equipe
-    const assignmentsResult = await supabaseClient
-      .from('schedule_team_assignments')
-      .select('*', { count: 'exact', head: true })
-      .eq('schedule_id', scheduleId);
-
     const membersCount = (membersResult as any).count || 0;
-    const assignmentsCount = (assignmentsResult as any).count || 0;
 
-    return membersCount + assignmentsCount;
+    return membersCount;
   }
 
   /**
@@ -651,30 +655,6 @@ export class ScheduleService {
       });
     }
 
-    // Buscar atribuições de equipe (schedule_team_assignments)
-    const { data: assignments } = await supabaseClient
-      .from('schedule_team_assignments')
-      .select('schedule_id, person_id, persons(id, full_name, photo_url)')
-      .in('schedule_id', scheduleIds);
-
-    if (assignments && assignments.length > 0) {
-      assignments.forEach((a: any) => {
-        const scheduleId = a.schedule_id;
-        const person = a.persons;
-        if (person && scheduleId) {
-          const existing = participantsMap.get(scheduleId) || [];
-          // Verificar se a pessoa já foi adicionada (evitar duplicatas)
-          if (!existing.some((p) => p.id === person.id)) {
-            existing.push({
-              id: person.id,
-              name: person.full_name || '',
-              imageUrl: person.photo_url || null,
-            });
-            participantsMap.set(scheduleId, existing);
-          }
-        }
-      });
-    }
 
     return participantsMap;
   }
@@ -686,7 +666,6 @@ export class ScheduleService {
     const [
       { data: groups },
       { data: teamData },
-      { data: assignments },
       { data: members },
       { data: comments, error: commentsError },
     ] = await Promise.all([
@@ -714,12 +693,6 @@ export class ScheduleService {
         .select('team_id, area_teams(id, name)')
         .eq('schedule_id', scheduleId)
         .single(),
-      supabaseClient
-        .from('schedule_team_assignments')
-        .select(
-          'id, person_id, team_role_id, persons(id, full_name, email, photo_url), area_team_roles(id, responsibility_id, quantity, priority, is_free, responsibilities(id, name, image_url))',
-        )
-        .eq('schedule_id', scheduleId),
       supabaseClient
         .from('schedule_members')
         .select(
@@ -782,30 +755,6 @@ export class ScheduleService {
             name: (teamData as any).area_teams.name,
           }
         : null,
-      assignments: (assignments || []).map((a: any) => ({
-        id: a.id,
-        personId: a.person_id,
-        person: a.persons
-          ? {
-              id: a.persons.id,
-              fullName: a.persons.full_name,
-              email: a.persons.email,
-              photoUrl: a.persons.photo_url,
-            }
-          : null,
-        teamRoleId: a.team_role_id,
-        teamRole: a.area_team_roles
-          ? {
-              id: a.area_team_roles.id,
-              responsibilityId: a.area_team_roles.responsibility_id,
-              responsibilityName: a.area_team_roles.responsibilities?.name,
-              priority: a.area_team_roles.priority,
-              quantity: a.area_team_roles.quantity,
-              isFree: a.area_team_roles.is_free,
-            }
-          : null,
-        createdAt: a.created_at,
-      })),
       members: (members || []).map((m: any) => ({
         id: m.id,
         personId: m.person_id,
@@ -1204,7 +1153,7 @@ export class ScheduleService {
 
   /**
    * Busca todas as pessoas relacionadas às escalas de forma otimizada
-   * Agrega pessoas de: schedule_members, schedule_team_assignments e grupos
+   * Agrega pessoas de: schedule_members e grupos
    */
   private async getPessoasMapOptimized(
     scheduleIds: string[],
@@ -1258,47 +1207,7 @@ export class ScheduleService {
       });
     }
 
-    // 2. Buscar schedule_team_assignments (pessoas atribuídas via equipe)
-    const { data: assignments } = await supabaseClient
-      .from('schedule_team_assignments')
-      .select(
-        'schedule_id, person_id, persons(id, full_name, photo_url), area_team_roles(id, responsibility_id, responsibilities(id, name))',
-      )
-      .in('schedule_id', scheduleIds);
-
-    if (assignments && assignments.length > 0) {
-      assignments.forEach((a: any) => {
-        const scheduleId = a.schedule_id;
-        const person = a.persons;
-        const teamRole = a.area_team_roles;
-        // O Supabase pode retornar responsibilities como objeto único ou array
-        const responsibility = teamRole?.responsibilities
-          ? (Array.isArray(teamRole.responsibilities)
-              ? teamRole.responsibilities[0]
-              : teamRole.responsibilities)
-          : null;
-
-        if (person && scheduleId) {
-          const existing = pessoasMap.get(scheduleId) || [];
-          // Verificar se a pessoa já foi adicionada (evitar duplicatas por person_id)
-          const personIds = existing.map((p: any) => (p as any).personId).filter(Boolean);
-          if (!personIds.includes(person.id)) {
-            const pessoa: PersonInScheduleDto & { personId?: string } = {
-              name: person.full_name || '',
-              url: person.photo_url || null,
-              role: responsibility?.name || '',
-              present: null, // Team assignments não têm present/status direto
-              status: 'accepted', // Assumir accepted para team assignments
-            };
-            (pessoa as any).personId = person.id; // Armazenar temporariamente para verificação
-            existing.push(pessoa);
-            pessoasMap.set(scheduleId, existing);
-          }
-        }
-      });
-    }
-
-    // 3. Buscar pessoas de grupos (schedule_groups → area_groups → area_group_members)
+    // 2. Buscar pessoas de grupos (schedule_groups → area_groups → area_group_members)
     // Primeiro, buscar quais grupos estão associados a cada schedule
     const { data: scheduleGroups } = await supabaseClient
       .from('schedule_groups')

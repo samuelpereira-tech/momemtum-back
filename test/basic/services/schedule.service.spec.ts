@@ -97,7 +97,7 @@ describe('ScheduleService', () => {
           }),
         }),
       });
-      // Mock count participants (schedule_team_assignments) - chamado no findOne dentro do create
+      // Mock count participants (schedule_members) - chamado no findOne dentro do create
       mockClient.from.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockResolvedValue({
@@ -224,7 +224,7 @@ describe('ScheduleService', () => {
           }),
         }),
       });
-      // Mock count participants (schedule_team_assignments)
+      // Mock count participants (schedule_members)
       mockClient.from.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockResolvedValue({
@@ -337,17 +337,6 @@ describe('ScheduleService', () => {
           };
         }
         
-        if (table === 'schedule_team_assignments') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({
-                data: [],
-                count: 2,
-                error: null,
-              }),
-            }),
-          };
-        }
         
         if (table === 'schedule_members') {
           return {
@@ -437,17 +426,6 @@ describe('ScheduleService', () => {
           };
         }
         
-        if (table === 'schedule_team_assignments') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({
-                data: [],
-                count: 0,
-                error: null,
-              }),
-            }),
-          };
-        }
         
         if (table === 'schedule_members') {
           return {
@@ -540,17 +518,6 @@ describe('ScheduleService', () => {
           };
         }
         
-        if (table === 'schedule_team_assignments') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({
-                data: [],
-                count: 0,
-                error: null,
-              }),
-            }),
-          };
-        }
         
         if (table === 'schedule_members') {
           return {
