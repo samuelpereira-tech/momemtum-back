@@ -214,6 +214,8 @@ export class ScheduledAreaController {
     @Req() request: Request,
   ): Promise<ImageUploadResponseDto> {
     // Extrai o token do request (adicionado pelo AuthGuard)
+
+    return {} as any
     const token = (request as any).token;
     return this.scheduledAreaService.uploadImage(id, file, token);
   }
