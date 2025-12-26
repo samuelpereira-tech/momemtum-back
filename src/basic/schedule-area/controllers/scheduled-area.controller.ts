@@ -206,7 +206,7 @@ export class ScheduledAreaController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          //new FileTypeValidator({ fileType: /image\/(jpeg|png|gif)/i }),
+          new FileTypeValidator({ fileType: /image\/(jpeg|png|gif)/i }),
         ],
       }),
     )
@@ -214,8 +214,6 @@ export class ScheduledAreaController {
     @Req() request: Request,
   ): Promise<ImageUploadResponseDto> {
     // Extrai o token do request (adicionado pelo AuthGuard)
-
-    return {} as any
     const token = (request as any).token;
     return this.scheduledAreaService.uploadImage(id, file, token);
   }
