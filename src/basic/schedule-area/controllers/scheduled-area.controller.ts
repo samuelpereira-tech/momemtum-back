@@ -38,6 +38,7 @@ import {
   ToggleFavoriteDto,
 } from '../dto/scheduled-area-response.dto';
 import { AuthGuard } from '../../../authentication/core/guards/auth.guard';
+import { Public } from '../../../authentication/core/decorators/public.decorator';
 import type { MulterFile } from '../interfaces/file.interface';
 
 @ApiTags('scheduled-areas')
@@ -113,6 +114,41 @@ export class ScheduledAreaController {
     const limitNum = limit ? Math.min(100, Math.max(1, parseInt(limit, 10))) : 10;
     const favoriteBool = favorite === 'true' ? true : favorite === 'false' ? false : undefined;
     return this.scheduledAreaService.findAll(pageNum, limitNum, favoriteBool);
+  }
+
+  @Public()
+  @Get(':id/schedules/optimized')
+  @ApiOperation({
+    summary: 'Get optimized schedules for an area',
+    description: 'Retrieves a list of schedules for a specific area. This endpoint is public.',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (starts at 1)',
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of items per page (max 100)',
+    type: Number,
+    example: 10,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of schedules retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Scheduled area not found' })
+  async getOptimizedSchedules(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? Math.max(1, parseInt(page, 10)) : 1;
+    const limitNum = limit ? Math.min(100, Math.max(1, parseInt(limit, 10))) : 10;
+    return this.scheduledAreaService.getOptimizedSchedules(id, pageNum, limitNum);
   }
 
   @Get(':id')

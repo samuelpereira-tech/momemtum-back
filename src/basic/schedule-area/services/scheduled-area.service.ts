@@ -18,7 +18,7 @@ import { MulterFile } from '../interfaces/file.interface';
 export class ScheduledAreaService {
   private readonly tableName = 'scheduled_areas';
 
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(private supabaseService: SupabaseService) { }
 
   async create(
     createScheduledAreaDto: CreateScheduledAreaDto,
@@ -344,6 +344,59 @@ export class ScheduledAreaService {
     }
 
     return result;
+  }
+
+  async getOptimizedSchedules(
+    areaId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const supabaseClient = this.supabaseService.getRawClient();
+
+    // Verifica se a área existe
+    await this.findOne(areaId);
+
+    const offset = (page - 1) * limit;
+
+    const query = supabaseClient
+      .from('schedules')
+      .select(`
+        *,
+        schedule_members (
+          id,
+          status,
+          present,
+          person:persons (
+            id,
+            full_name,
+            photo_url
+          ),
+          responsibility:responsibilities (
+            id,
+            name,
+            image_url
+          )
+        )
+      `, { count: 'exact' })
+      .eq('scheduled_area_id', areaId)
+      .order('start_datetime', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      handleSupabaseError(error);
+    }
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+      },
+    };
   }
 }
 
