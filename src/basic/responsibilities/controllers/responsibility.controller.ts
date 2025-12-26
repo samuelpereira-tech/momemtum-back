@@ -235,6 +235,7 @@ export class ResponsibilityController {
     // Extrai o token do request (adicionado pelo AuthGuard)
     const token = (request as any).token;
     return this.responsibilityService.deleteImage(id, token);
+
   }
 }
 
