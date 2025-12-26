@@ -46,7 +46,7 @@ import type { MulterFile } from '../interfaces/file.interface';
 export class ResponsibilityController {
   constructor(
     private readonly responsibilityService: ResponsibilityService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -204,7 +204,7 @@ export class ResponsibilityController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+          new FileTypeValidator({ fileType: /image\/(jpg|jpeg|png|gif)/i }),
         ],
       }),
     )

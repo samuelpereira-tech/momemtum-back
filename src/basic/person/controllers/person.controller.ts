@@ -47,7 +47,7 @@ import type { MulterFile } from '../interfaces/file.interface';
 @UseGuards(AuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class PersonController {
-  constructor(private readonly personService: PersonService) {}
+  constructor(private readonly personService: PersonService) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -188,7 +188,7 @@ export class PersonController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+          new FileTypeValidator({ fileType: /image\/(jpg|jpeg|png|gif)/i }),
         ],
       }),
     )
