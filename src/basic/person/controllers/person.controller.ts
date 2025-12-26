@@ -188,7 +188,7 @@ export class PersonController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: /image\/(jpeg|png|gif)/i }),
+          //   new FileTypeValidator({ fileType: /image\/(jpeg|png|gif)/i }),
         ],
       }),
     )

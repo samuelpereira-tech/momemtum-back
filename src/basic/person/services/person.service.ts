@@ -23,7 +23,7 @@ import { MulterFile } from '../interfaces/file.interface';
 export class PersonService {
   private readonly tableName = 'persons';
 
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(private supabaseService: SupabaseService) { }
 
   async create(createPersonDto: CreatePersonDto): Promise<PersonResponseDto> {
     const supabaseClient = this.supabaseService.getRawClient();
@@ -430,26 +430,26 @@ export class PersonService {
     // Normalizar período para início/fim do dia para comparação
     const periodStartDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
     const periodEndDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-    
+
     // Extrair datas das escalas
     const scheduledDatesSet = new Set<string>();
-    
+
     // Processar todas as escalas
     for (const schedule of schedules) {
       if (schedule) {
         const scheduleStart = new Date(schedule.start_datetime);
         const scheduleEnd = new Date(schedule.end_datetime);
-        
+
         // Normalizar para início do dia para comparação
         const scheduleStartDate = new Date(scheduleStart.getFullYear(), scheduleStart.getMonth(), scheduleStart.getDate());
         const scheduleEndDate = new Date(scheduleEnd.getFullYear(), scheduleEnd.getMonth(), scheduleEnd.getDate());
-        
+
         // Verificar se a escala se sobrepõe ao período consultado
         if (scheduleEndDate >= periodStartDate && scheduleStartDate <= periodEndDate) {
           // Extrair todas as datas da escala que estão no período
           const overlapStart = scheduleStartDate > periodStartDate ? scheduleStartDate : periodStartDate;
           const overlapEnd = scheduleEndDate < periodEndDate ? scheduleEndDate : periodEndDate;
-          
+
           const currentDate = new Date(overlapStart);
           while (currentDate <= overlapEnd) {
             scheduledDatesSet.add(currentDate.toISOString().split('T')[0]);
@@ -461,22 +461,22 @@ export class PersonService {
 
     // Extrair datas das ausências
     const absentDatesSet = new Set<string>();
-    
+
     if (absences) {
       for (const absence of absences) {
         const absenceStart = new Date(absence.start_date + 'T00:00:00.000Z');
         const absenceEnd = new Date(absence.end_date + 'T23:59:59.999Z');
-        
+
         // Normalizar para início do dia para comparação
         const absenceStartDate = new Date(absenceStart.getFullYear(), absenceStart.getMonth(), absenceStart.getDate());
         const absenceEndDate = new Date(absenceEnd.getFullYear(), absenceEnd.getMonth(), absenceEnd.getDate());
-        
+
         // Verificar se a ausência se sobrepõe ao período consultado
         if (absenceEndDate >= periodStartDate && absenceStartDate <= periodEndDate) {
           // Extrair todas as datas da ausência que estão no período
           const overlapStart = absenceStartDate > periodStartDate ? absenceStartDate : periodStartDate;
           const overlapEnd = absenceEndDate < periodEndDate ? absenceEndDate : periodEndDate;
-          
+
           const currentDate = new Date(overlapStart);
           while (currentDate <= overlapEnd) {
             absentDatesSet.add(currentDate.toISOString().split('T')[0]);
@@ -489,7 +489,7 @@ export class PersonService {
     // Converter sets para arrays ordenados
     const scheduledDates = Array.from(scheduledDatesSet).sort();
     const absentDates = Array.from(absentDatesSet).sort();
-    
+
     // Combinar todas as datas ocupadas (escaladas ou ausentes)
     const allOccupiedDatesSet = new Set([...scheduledDatesSet, ...absentDatesSet]);
     const allOccupiedDates = Array.from(allOccupiedDatesSet).sort();
